@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma db push --skip-generate && node prisma/seed.mjs && next build",
     "start": "next start",
     "lint": "next lint"
   },
@@ -19,6 +19,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@netlify/plugin-nextjs": "^5.16.4",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.9.0",
     "@types/react": "^19.0.0",

@@ -1,0 +1,14 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+  DATABASE_URL = "file:./dev.db"
+  JWT_SECRET = "c8f7e2d9b4a1f5e8d2c3b4a5f6e7d8c9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5"
+  ADMIN_DEFAULT_USER = "admin"
+  ADMIN_DEFAULT_PASSWORD = "WoodArtAdmin2026!#"
+  NEXT_PUBLIC_WHATSAPP_NUMBER = "94700000000"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
