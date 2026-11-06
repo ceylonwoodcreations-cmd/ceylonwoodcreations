@@ -8,6 +8,3 @@
   ADMIN_DEFAULT_USER = "admin"
   ADMIN_DEFAULT_PASSWORD = "WoodArtAdmin2026!#"
   NEXT_PUBLIC_WHATSAPP_NUMBER = "94700000000"
-
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
