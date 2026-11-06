@@ -8,9 +8,9 @@ export const loginSchema = z.object({
 export const productSchema = z.object({
   title: z.string().min(2, "Title is too short").max(150, "Title is too long").trim(),
   category: z.enum([
-    "පිළිම සහ ප්‍රතිමා",
-    "බිත්ති සැරසිලි",
-    "සිහිවටන (Souvenirs)",
+    "බිත්ති සැරසිලි හා අලංකාර නිර්මාණ",
+    "ලී සෙල්ලම් බඩු හා මුළුතැන්ගෙයි උපකරණ",
+    "විශේෂිත ලී නිර්මාණ හා ඇණවුම් අනුව නිර්මාණ",
     "වෙනත් නිර්මාණ (Other)"
   ]),
   wood: z.string().min(2).max(100).trim(),

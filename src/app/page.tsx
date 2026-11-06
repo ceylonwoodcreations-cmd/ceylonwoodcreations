@@ -8,30 +8,30 @@ import Footer from '@/components/Footer';
 const defaultProducts: ProductData[] = [
   {
     id: 1,
-    title: "සමාධි බුද්ධ ප්‍රතිමාව (අඟල් 18)",
-    category: "පිළිම සහ ප්‍රතිමා",
-    wood: "තේක්ක දැව (Teak Wood)",
-    price: 18500,
-    image: "https://images.unsplash.com/photo-1545063914-a1a6ec821c88?auto=format&fit=crop&w=800&q=80",
-    description: "තේක්ක දැවයෙන් නිමවන ලද සාමකාමී සමාධි බුදු පිළිමය."
+    title: "සාම්ප්‍රදායික කැටයම් බිත්ති සැරසිල්ල",
+    category: "බිත්ති සැරසිලි හා අලංකාර නිර්මාණ",
+    wood: "මහෝගනී සහ තේක්ක (Mahogany & Teak)",
+    price: 14500,
+    image: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=800&q=80",
+    description: "නිවසේ හෝ කාර්යාලයේ අලංකාරය වැඩිකරන සියුම් සාම්ප්‍රදායික කැටයම් සහිත බිත්ති සැරසිල්ල."
   },
   {
     id: 2,
-    title: "සාම්ප්‍රදායික සඳකඩපහණ බිත්ති සැරසිල්ල",
-    category: "බිත්ති සැරසිලි",
-    wood: "මහෝගනී දැව (Mahogany)",
-    price: 14000,
-    image: "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=800&q=80",
-    description: "අනුරාධපුර සම්ප්‍රදායේ සියුම් කැටයම් සහිත සඳකඩපහණ බිත්ති සැරසිල්ල."
+    title: "ස්වාභාවික දැව මුළුතැන්ගෙයි උපකරණ කට්ටලය",
+    category: "ලී සෙල්ලම් බඩු හා මුළුතැන්ගෙයි උපකරණ",
+    wood: "තේක්ක දැව (Natural Teak Wood)",
+    price: 6800,
+    image: "https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?auto=format&fit=crop&w=800&q=80",
+    description: "100% ස්වාභාවික දැවයෙන් නිමවූ, කල්පවතින හා විෂබීජ නාශක ගුණයෙන් යුතු මුළුතැන්ගෙයි හැඳි හා උපකරණ කට්ටලය."
   },
   {
     id: 3,
-    title: "කැටයම් කළ ඇත් රූපය (Ceylon Elephant)",
-    category: "සිහිවටන (Souvenirs)",
-    wood: "කළුවර නිමාව (Ebony Finish)",
-    price: 7500,
-    image: "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80",
-    description: "ශ්‍රී ලාංකීය අභිමානය විදහා දක්වන සාම්ප්‍රදායික ඇත් රූප සිහිවටනය."
+    title: "සුවිශේෂී කැටයම් කළ ඇත් රූපය හා මංජුසාව",
+    category: "විශේෂිත ලී නිර්මාණ හා ඇණවුම් අනුව නිර්මාණ",
+    wood: "කළුවර හා නැදුන් දැව (Ebony & Nadun Wood)",
+    price: 18500,
+    image: "https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=800&q=80",
+    description: "ඔබගේ විශේෂ අවස්ථා හා ප්‍රභූ ත්‍යාග සඳහා ඔබේ අවශ්‍යතාව පරිදිම සකස් කරගත හැකි අද්විතීය ලී නිර්මාණයකි."
   }
 ];
 

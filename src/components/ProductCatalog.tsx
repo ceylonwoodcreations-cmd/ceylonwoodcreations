@@ -23,19 +23,30 @@ export default function ProductCatalog({ initialProducts }: ProductCatalogProps)
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setProducts(parsed);
+          // If stored products contain old category names, reset to new default categories
+          const hasOldCategories = parsed.some(
+            (p: ProductData) =>
+              p.category === 'පිළිම සහ ප්‍රතිමා' ||
+              p.category === 'සිහිවටන (Souvenirs)'
+          );
+          if (hasOldCategories) {
+            localStorage.setItem('ceylon_products', JSON.stringify(initialProducts));
+            setProducts(initialProducts);
+          } else {
+            setProducts(parsed);
+          }
         }
       }
     } catch (e) {
       // Ignore
     }
-  }, []);
+  }, [initialProducts]);
 
   const categories = [
     { key: 'All', label: t.filterAll },
-    { key: 'පිළිම සහ ප්‍රතිමා', label: t.filterStatues },
-    { key: 'බිත්ති සැරසිලි', label: t.filterWall },
-    { key: 'සිහිවටන (Souvenirs)', label: t.filterSouvenirs },
+    { key: 'බිත්ති සැරසිලි හා අලංකාර නිර්මාණ', label: t.filterCat1 },
+    { key: 'ලී සෙල්ලම් බඩු හා මුළුතැන්ගෙයි උපකරණ', label: t.filterCat2 },
+    { key: 'විශේෂිත ලී නිර්මාණ හා ඇණවුම් අනුව නිර්මාණ', label: t.filterCat3 },
   ];
 
   const filteredProducts = useMemo(() => {

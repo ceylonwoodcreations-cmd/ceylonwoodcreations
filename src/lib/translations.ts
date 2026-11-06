@@ -17,9 +17,12 @@ export const translations = {
     catTitle: "අපගේ නිර්මාණ එකතුව",
     catSubtitle: "ඔබට අවශ්‍ය කාණ්ඩය තෝරා නිර්මාණ පරීක්ෂා කරන්න",
     filterAll: "සියල්ල (All)",
-    filterStatues: "පිළිම සහ ප්‍රතිමා",
-    filterWall: "බිත්ති සැරසිලි",
-    filterSouvenirs: "සිහිවටන (Souvenirs)",
+    filterCat1: "බිත්ති සැරසිලි හා අලංකාර නිර්මාණ",
+    filterCat2: "ලී සෙල්ලම් බඩු හා මුළුතැන්ගෙයි උපකරණ",
+    filterCat3: "විශේෂිත ලී නිර්මාණ හා ඇණවුම් අනුව නිර්මාණ",
+    filterStatues: "බිත්ති සැරසිලි හා අලංකාර නිර්මාණ",
+    filterWall: "ලී සෙල්ලම් බඩු හා මුළුතැන්ගෙයි උපකරණ",
+    filterSouvenirs: "විශේෂිත ලී නිර්මාණ හා ඇණවුම් අනුව නිර්මාණ",
     customTitle: "ඔබටම වෙන්වූ කැටයමක් නිර්මාණය කරගන්න",
     customSubtitle: "ඔබේ අදහස හෝ කැමති දැව වර්ගය සඳහන් කර අපට පණිවිඩයක් එවන්න.",
     custNamePh: "ඔබේ නම (Your Name)",
@@ -52,9 +55,12 @@ export const translations = {
     catTitle: "Our Product Catalog",
     catSubtitle: "Browse our authentic handcrafted creations by category",
     filterAll: "All Items",
-    filterStatues: "Statues & Figures",
-    filterWall: "Wall Art",
-    filterSouvenirs: "Souvenirs",
+    filterCat1: "Wall Decor & Accessories",
+    filterCat2: "Wooden Toys & Kitchenware",
+    filterCat3: "Special Wooden Creations & Custom Orders",
+    filterStatues: "Wall Decor & Accessories",
+    filterWall: "Wooden Toys & Kitchenware",
+    filterSouvenirs: "Special Wooden Creations & Custom Orders",
     customTitle: "Request a Custom Wood Carving",
     customSubtitle: "Share your idea and preferred wood type with us for a custom quotation.",
     custNamePh: "Your Name",
@@ -74,8 +80,8 @@ export const translations = {
 };
 
 export const categoryEnMap: Record<string, string> = {
-  "පිළිම සහ ප්‍රතිමා": "Statues & Figures",
-  "බිත්ති සැරසිලි": "Wall Art",
-  "සිහිවටන (Souvenirs)": "Souvenirs",
+  "බිත්ති සැරසිලි හා අලංකාර නිර්මාණ": "Wall Decor & Accessories",
+  "ලී සෙල්ලම් බඩු හා මුළුතැන්ගෙයි උපකරණ": "Wooden Toys & Kitchenware",
+  "විශේෂිත ලී නිර්මාණ හා ඇණවුම් අනුව නිර්මාණ": "Special Wooden Creations & Custom Orders",
   "වෙනත් නිර්මාණ (Other)": "Other Creations"
 };
