@@ -37,7 +37,7 @@ export default function Hero() {
         </h1>
 
         {/* Description */}
-        <p className="text-base sm:text-lg md:text-xl text-amber-100/90 max-w-2xl mx-auto font-light leading-relaxed">
+        <p className="text-base sm:text-lg md:text-xl text-amber-100/90 max-w-2xl mx-auto font-light leading-relaxed whitespace-pre-line">
           {t.heroDesc}
         </p>
 
