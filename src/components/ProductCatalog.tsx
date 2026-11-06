@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import ProductCard, { ProductData } from './ProductCard';
 import LightboxModal from './LightboxModal';
 import { useLanguage } from '@/context/LanguageContext';
@@ -12,9 +12,24 @@ interface ProductCatalogProps {
 
 export default function ProductCatalog({ initialProducts }: ProductCatalogProps) {
   const { t } = useLanguage();
+  const [products, setProducts] = useState<ProductData[]>(initialProducts);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeLightboxProduct, setActiveLightboxProduct] = useState<ProductData | null>(null);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('ceylon_products');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setProducts(parsed);
+        }
+      }
+    } catch (e) {
+      // Ignore
+    }
+  }, []);
 
   const categories = [
     { key: 'All', label: t.filterAll },
@@ -24,7 +39,7 @@ export default function ProductCatalog({ initialProducts }: ProductCatalogProps)
   ];
 
   const filteredProducts = useMemo(() => {
-    return initialProducts.filter((product) => {
+    return products.filter((product) => {
       const matchCategory =
         selectedCategory === 'All' || product.category === selectedCategory;
       const matchSearch =
@@ -32,7 +47,7 @@ export default function ProductCatalog({ initialProducts }: ProductCatalogProps)
         product.wood.toLowerCase().includes(searchQuery.toLowerCase());
       return matchCategory && matchSearch;
     });
-  }, [initialProducts, selectedCategory, searchQuery]);
+  }, [products, selectedCategory, searchQuery]);
 
   return (
     <section id="catalog" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">

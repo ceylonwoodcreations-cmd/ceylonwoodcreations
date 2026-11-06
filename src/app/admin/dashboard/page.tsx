@@ -55,25 +55,59 @@ export default function AdminDashboardPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  const initialDefaultProducts: Product[] = [
+    {
+      id: 1,
+      title: "සමාධි බුද්ධ ප්‍රතිමාව (අඟල් 18)",
+      category: "පිළිම සහ ප්‍රතිමා",
+      wood: "තේක්ක දැව (Teak Wood)",
+      price: 18500,
+      image: "https://images.unsplash.com/photo-1545063914-a1a6ec821c88?auto=format&fit=crop&w=800&q=80",
+      description: "තේක්ක දැවයෙන් නිමවන ලද සාමකාමී සමාධි බුදු පිළිමය."
+    },
+    {
+      id: 2,
+      title: "සාම්ප්‍රදායික සඳකඩපහණ බිත්ති සැරසිල්ල",
+      category: "බිත්ති සැරසිලි",
+      wood: "මහෝගනී දැව (Mahogany)",
+      price: 14000,
+      image: "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=800&q=80",
+      description: "අනුරාධපුර සම්ප්‍රදායේ සියුම් කැටයම් සහිත සඳකඩපහණ බිත්ති සැරසිල්ල."
+    },
+    {
+      id: 3,
+      title: "කැටයම් කළ ඇත් රූපය (Ceylon Elephant)",
+      category: "සිහිවටන (Souvenirs)",
+      wood: "කළුවර නිමාව (Ebony Finish)",
+      price: 7500,
+      image: "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80",
+      description: "ශ්‍රී ලාංකීය අභිමානය විදහා දක්වන සාම්ප්‍රදායික ඇත් රූප සිහිවටනය."
+    }
+  ];
+
   useEffect(() => {
+    const isAuth = sessionStorage.getItem('ceylon_admin_auth');
+    if (isAuth !== 'true') {
+      router.replace('/admin/login');
+      return;
+    }
     fetchData();
   }, []);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [prodRes, inqRes] = await Promise.all([
-        fetch('/api/products'),
-        fetch('/api/inquiries'),
-      ]);
-
-      if (prodRes.ok) {
-        const prodData = await prodRes.json();
-        setProducts(prodData);
+      const savedProds = localStorage.getItem('ceylon_products');
+      if (savedProds) {
+        setProducts(JSON.parse(savedProds));
+      } else {
+        setProducts(initialDefaultProducts);
+        localStorage.setItem('ceylon_products', JSON.stringify(initialDefaultProducts));
       }
-      if (inqRes.ok) {
-        const inqData = await inqRes.json();
-        setInquiries(inqData);
+
+      const savedInqs = localStorage.getItem('ceylon_inquiries');
+      if (savedInqs) {
+        setInquiries(JSON.parse(savedInqs));
       }
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -88,26 +122,19 @@ export default function AdminDashboardPage() {
     setFeedback(null);
 
     try {
-      const res = await fetch('/api/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title,
-          category,
-          wood,
-          price: parseFloat(price),
-          image,
-          description,
-        }),
-      });
+      const newProduct: Product = {
+        id: Date.now(),
+        title,
+        category,
+        wood,
+        price: parseFloat(price) || 0,
+        image,
+        description,
+      };
 
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || 'Failed to add product');
-      }
-
-      const newProduct = await res.json();
-      setProducts([newProduct, ...products]);
+      const updated = [newProduct, ...products];
+      setProducts(updated);
+      localStorage.setItem('ceylon_products', JSON.stringify(updated));
       setFeedback({ type: 'success', text: 'නව නිර්මාණය සාර්ථකව Catalog එකට එක් කෙරිණි!' });
 
       // Reset form
@@ -127,26 +154,14 @@ export default function AdminDashboardPage() {
 
   const handleDeleteProduct = async (id: number) => {
     if (!confirm('මෙම නිර්මාණය ඉවත් කිරීමට අවශ්‍ය බව විශ්වාසද?')) return;
-
-    try {
-      const res = await fetch(`/api/products/${id}`, {
-        method: 'DELETE',
-      });
-
-      if (res.ok) {
-        setProducts(products.filter((p) => p.id !== id));
-      } else {
-        alert('ඉවත් කිරීම අසාර්ථක විය.');
-      }
-    } catch (err) {
-      alert('දෝෂයක් සිදුවිය.');
-    }
+    const updated = products.filter((p) => p.id !== id);
+    setProducts(updated);
+    localStorage.setItem('ceylon_products', JSON.stringify(updated));
   };
 
   const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
+    sessionStorage.removeItem('ceylon_admin_auth');
     router.push('/admin/login');
-    router.refresh();
   };
 
   return (

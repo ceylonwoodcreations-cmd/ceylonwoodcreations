@@ -1,13 +1,9 @@
-import { prisma } from '@/lib/prisma';
 import Navbar from '@/components/Navbar';
 import Hero from '@/components/Hero';
 import ProductCatalog from '@/components/ProductCatalog';
 import { ProductData } from '@/components/ProductCard';
 import CustomOrderSection from '@/components/CustomOrderSection';
 import Footer from '@/components/Footer';
-
-// Revalidate every 60 seconds or on demand
-export const revalidate = 60;
 
 const defaultProducts: ProductData[] = [
   {
@@ -39,27 +35,13 @@ const defaultProducts: ProductData[] = [
   }
 ];
 
-export default async function HomePage() {
-  let products: ProductData[] = defaultProducts;
-
-  try {
-    const dbProducts = await prisma.product.findMany({
-      orderBy: { createdAt: 'desc' },
-    });
-    if (dbProducts && dbProducts.length > 0) {
-      products = dbProducts;
-    }
-  } catch (error) {
-    // If DB is initializing or empty, fallback seamlessly to default handcrafted wood products
-    console.warn('Falling back to default products during prerender:', error);
-  }
-
+export default function HomePage() {
   return (
     <>
       <Navbar />
       <main className="flex-grow">
         <Hero />
-        <ProductCatalog initialProducts={products} />
+        <ProductCatalog initialProducts={defaultProducts} />
         <CustomOrderSection />
       </main>
       <Footer />

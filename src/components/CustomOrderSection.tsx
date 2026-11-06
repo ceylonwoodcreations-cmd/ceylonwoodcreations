@@ -21,22 +21,27 @@ export default function CustomOrderSection() {
     setStatusMessage(null);
 
     try {
-      // 1. Submit lead to database via secure API
-      const res = await fetch('/api/inquiries', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, phone, wood, description }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to submit inquiry');
-      }
-
-      // 2. Open WhatsApp with prefilled message
+      // Open WhatsApp directly with inquiry details
       const msg = `ආයුබෝවන් Ceylon Wood Creations! මම ${name} (${phone}). මට ${wood} වලින් විශේෂ කැටයමක් හදාගන්න අවශ්‍යයි.\n\nවිස්තර:\n${description}`;
       const waUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(msg)}`;
       window.open(waUrl, '_blank', 'noopener,noreferrer');
+
+      // Also save locally for inquiry history if needed
+      try {
+        const savedInquiries = JSON.parse(localStorage.getItem('ceylon_inquiries') || '[]');
+        savedInquiries.unshift({
+          id: Date.now(),
+          name,
+          phone,
+          wood,
+          description,
+          status: 'NEW',
+          createdAt: new Date().toISOString(),
+        });
+        localStorage.setItem('ceylon_inquiries', JSON.stringify(savedInquiries));
+      } catch (e) {
+        // Ignore localStorage error
+      }
 
       setStatusMessage({
         type: 'success',
