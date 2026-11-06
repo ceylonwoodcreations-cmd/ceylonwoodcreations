@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import logoImg from '../../public/logo.jpg';
 import { Phone, MapPin, Heart } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
@@ -18,7 +19,7 @@ export default function Footer() {
           <div className="flex items-center space-x-3.5">
             <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-amber-400/60 shadow-lg flex-shrink-0 bg-wood-900 ring-1 ring-amber-500/30">
               <Image
-                src="/logo.jpg"
+                src={logoImg}
                 alt="Ceylon Wood Creations"
                 width={56}
                 height={56}

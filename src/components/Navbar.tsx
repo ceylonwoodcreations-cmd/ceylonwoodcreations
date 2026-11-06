@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import logoImg from '../../public/logo.jpg';
 import { Globe, Shield, Menu, X } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
@@ -18,7 +19,7 @@ export default function Navbar() {
         <Link href="/" className="flex items-center space-x-3.5 group">
           <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-amber-400/70 shadow-lg shadow-amber-950/50 group-hover:border-amber-300 group-hover:scale-105 transition-all duration-300 flex-shrink-0 bg-wood-950 ring-1 ring-amber-500/30">
             <Image
-              src="/logo.jpg"
+              src={logoImg}
               alt="Ceylon Wood Creations"
               width={56}
               height={56}
