@@ -3,6 +3,8 @@
  * Compresses images automatically to ~100KB before uploading
  */
 
+export const DEFAULT_IMGBB_API_KEY = '930db79e185bb97f9f7f8bcec798f35f';
+
 export interface CompressionResult {
   blob: Blob;
   dataUrl: string;
@@ -96,8 +98,8 @@ export async function compressImageToTarget(
 /**
  * Uploads a compressed image blob to ImgBB via their API
  */
-export async function uploadToImgBB(blob: Blob, apiKey: string): Promise<string> {
-  const cleanKey = apiKey.trim();
+export async function uploadToImgBB(blob: Blob, apiKey?: string): Promise<string> {
+  const cleanKey = (apiKey || DEFAULT_IMGBB_API_KEY).trim();
   if (!cleanKey) {
     throw new Error('ImgBB API Key එක ඇතුළත් කර නොමැත. කරුණාකර API Key එක සකසන්න.');
   }

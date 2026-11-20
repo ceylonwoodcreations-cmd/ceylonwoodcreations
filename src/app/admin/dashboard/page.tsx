@@ -26,7 +26,7 @@ import {
   X,
   Link as LinkIcon
 } from 'lucide-react';
-import { compressImageToTarget, uploadToImgBB, CompressionResult } from '@/lib/imageUpload';
+import { compressImageToTarget, uploadToImgBB, CompressionResult, DEFAULT_IMGBB_API_KEY } from '@/lib/imageUpload';
 
 interface Product {
   id: number;
@@ -68,9 +68,9 @@ export default function AdminDashboardPage() {
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // ImgBB and Upload States
-  const [imgbbApiKey, setImgbbApiKey] = useState('');
+  const [imgbbApiKey, setImgbbApiKey] = useState(DEFAULT_IMGBB_API_KEY);
   const [showApiKeySettings, setShowApiKeySettings] = useState(false);
-  const [tempApiKey, setTempApiKey] = useState('');
+  const [tempApiKey, setTempApiKey] = useState(DEFAULT_IMGBB_API_KEY);
   const [apiKeySavedSuccess, setApiKeySavedSuccess] = useState(false);
 
   const [imageInputMode, setImageInputMode] = useState<'upload' | 'url'>('upload');
@@ -118,7 +118,7 @@ export default function AdminDashboardPage() {
     }
 
     // Load saved ImgBB API key if available
-    const savedKey = localStorage.getItem('ceylon_imgbb_key') || '';
+    const savedKey = localStorage.getItem('ceylon_imgbb_key') || DEFAULT_IMGBB_API_KEY;
     setImgbbApiKey(savedKey);
     setTempApiKey(savedKey);
 
