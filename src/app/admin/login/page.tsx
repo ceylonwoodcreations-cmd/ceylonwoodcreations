@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import logoImg from '../../../../public/logo.jpg';
 import { Lock, User, ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
 
 export default function AdminLoginPage() {
@@ -54,7 +55,7 @@ export default function AdminLoginPage() {
         <div className="text-center space-y-3 mb-8">
           <div className="w-24 h-24 mx-auto rounded-full overflow-hidden border-2 border-amber-400/80 shadow-2xl shadow-amber-950/80 bg-wood-950 ring-2 ring-amber-500/30">
             <Image
-              src="/logo.jpg"
+              src={logoImg}
               alt="Ceylon Wood Creations"
               width={96}
               height={96}

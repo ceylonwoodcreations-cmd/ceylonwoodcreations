@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import logoImg from '../../../../public/logo.jpg';
 import { 
   Package, 
   MessageSquare, 
@@ -298,7 +299,7 @@ export default function AdminDashboardPage() {
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-amber-400/60 shadow-sm flex-shrink-0 bg-wood-950 ring-1 ring-amber-500/30">
               <Image
-                src="/logo.jpg"
+                src={logoImg}
                 alt="Ceylon Wood Creations"
                 width={40}
                 height={40}
