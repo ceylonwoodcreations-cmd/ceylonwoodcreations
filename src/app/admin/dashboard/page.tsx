@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -15,8 +15,18 @@ import {
   Trees, 
   CheckCircle2, 
   AlertCircle,
-  Phone
+  Phone,
+  UploadCloud,
+  ImageIcon,
+  Sparkles,
+  Key,
+  Settings,
+  Check,
+  RefreshCw,
+  X,
+  Link as LinkIcon
 } from 'lucide-react';
+import { compressImageToTarget, uploadToImgBB, CompressionResult } from '@/lib/imageUpload';
 
 interface Product {
   id: number;
@@ -40,6 +50,8 @@ interface Inquiry {
 
 export default function AdminDashboardPage() {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [activeTab, setActiveTab] = useState<'products' | 'inquiries'>('products');
   const [products, setProducts] = useState<Product[]>([]);
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
@@ -50,10 +62,23 @@ export default function AdminDashboardPage() {
   const [category, setCategory] = useState('බිත්ති සැරසිලි හා අලංකාර නිර්මාණ');
   const [wood, setWood] = useState('');
   const [price, setPrice] = useState('');
-  const [image, setImage] = useState('https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=800&q=80');
+  const [image, setImage] = useState('');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // ImgBB and Upload States
+  const [imgbbApiKey, setImgbbApiKey] = useState('');
+  const [showApiKeySettings, setShowApiKeySettings] = useState(false);
+  const [tempApiKey, setTempApiKey] = useState('');
+  const [apiKeySavedSuccess, setApiKeySavedSuccess] = useState(false);
+
+  const [imageInputMode, setImageInputMode] = useState<'upload' | 'url'>('upload');
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'compressing' | 'uploading' | 'success' | 'error'>('idle');
+  const [compressionInfo, setCompressionInfo] = useState<{ originalKB: number; compressedKB: number } | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [previewDataUrl, setPreviewDataUrl] = useState<string>('');
+  const [isDragging, setIsDragging] = useState(false);
 
   const initialDefaultProducts: Product[] = [
     {
@@ -91,6 +116,12 @@ export default function AdminDashboardPage() {
       router.replace('/admin/login');
       return;
     }
+
+    // Load saved ImgBB API key if available
+    const savedKey = localStorage.getItem('ceylon_imgbb_key') || '';
+    setImgbbApiKey(savedKey);
+    setTempApiKey(savedKey);
+
     fetchData();
   }, []);
 
@@ -127,20 +158,102 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const handleSaveApiKey = (keyToSave: string) => {
+    const cleanKey = keyToSave.trim();
+    localStorage.setItem('ceylon_imgbb_key', cleanKey);
+    setImgbbApiKey(cleanKey);
+    setApiKeySavedSuccess(true);
+    setTimeout(() => setApiKeySavedSuccess(false), 2500);
+  };
+
+  // Image processing & upload
+  const handleProcessAndUploadImage = async (file: File) => {
+    if (!file) return;
+    setUploadError(null);
+    setUploadStatus('compressing');
+
+    try {
+      // Step 1: Compress to ~100KB
+      const compResult: CompressionResult = await compressImageToTarget(file, 100);
+      setCompressionInfo({
+        originalKB: compResult.originalKB,
+        compressedKB: compResult.compressedKB,
+      });
+      setPreviewDataUrl(compResult.dataUrl);
+
+      // Step 2: Check API key
+      const keyToUse = imgbbApiKey.trim() || tempApiKey.trim();
+      if (!keyToUse) {
+        setUploadStatus('error');
+        setUploadError('ImgBB API Key එකක් ඇතුළත් කර නොමැත. කරුණාකර පහතින් API Key එක සකසන්න.');
+        setShowApiKeySettings(true);
+        return;
+      }
+
+      // Step 3: Upload to ImgBB
+      setUploadStatus('uploading');
+      const directUrl = await uploadToImgBB(compResult.blob, keyToUse);
+      setImage(directUrl);
+      setUploadStatus('success');
+    } catch (err: unknown) {
+      setUploadStatus('error');
+      setUploadError(err instanceof Error ? err.message : 'පින්තූරය upload කිරීම අසාර්ථක විය.');
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      handleProcessAndUploadImage(e.target.files[0]);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleProcessAndUploadImage(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleClearImage = () => {
+    setImage('');
+    setPreviewDataUrl('');
+    setCompressionInfo(null);
+    setUploadStatus('idle');
+    setUploadError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     setFeedback(null);
 
     try {
+      if (!image.trim()) {
+        throw new Error('කරුණාකර නිර්මාණයේ පින්තූරය upload කරන්න හෝ Photo URL එකක් ඇතුළත් කරන්න.');
+      }
+
       const newProduct: Product = {
         id: Date.now(),
-        title,
+        title: title.trim(),
         category,
-        wood,
+        wood: wood.trim(),
         price: parseFloat(price) || 0,
-        image,
-        description,
+        image: image.trim(),
+        description: description.trim(),
       };
 
       const updated = [newProduct, ...products];
@@ -153,6 +266,7 @@ export default function AdminDashboardPage() {
       setWood('');
       setPrice('');
       setDescription('');
+      handleClearImage();
     } catch (err: unknown) {
       setFeedback({
         type: 'error',
@@ -179,7 +293,7 @@ export default function AdminDashboardPage() {
     <div className="min-h-screen bg-wood-50 text-wood-900 flex flex-col">
       
       {/* Top Admin Bar */}
-      <header className="bg-wood-900 text-white border-b border-wood-800 sticky top-0 z-30">
+      <header className="bg-wood-900 text-white border-b border-wood-800 sticky top-0 z-30 shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-amber-400/60 shadow-sm flex-shrink-0 bg-wood-950 ring-1 ring-amber-500/30">
@@ -197,13 +311,30 @@ export default function AdminDashboardPage() {
             </div>
           </div>
 
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            {/* ImgBB Status & Key Button */}
+            <button
+              onClick={() => setShowApiKeySettings(!showApiKeySettings)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition border ${
+                imgbbApiKey
+                  ? 'bg-wood-800 hover:bg-wood-700 text-emerald-300 border-emerald-500/30'
+                  : 'bg-amber-900/60 hover:bg-amber-800 text-amber-200 border-amber-500/50'
+              }`}
+              title="ImgBB API Key Settings"
+            >
+              <Key className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">
+                {imgbbApiKey ? 'ImgBB Connected' : 'Set ImgBB Key'}
+              </span>
+              <span className="sm:hidden">ImgBB</span>
+            </button>
+
             <Link
               href="/"
               target="_blank"
-              className="text-xs text-amber-200/80 hover:text-amber-300 flex items-center space-x-1 transition"
+              className="text-xs text-amber-200/80 hover:text-amber-300 flex items-center space-x-1 transition px-2 py-1.5"
             >
-              <span>Website එක බලන්න</span>
+              <span className="hidden sm:inline">Website එක බලන්න</span>
               <ExternalLink className="w-3.5 h-3.5" />
             </Link>
 
@@ -219,8 +350,62 @@ export default function AdminDashboardPage() {
       </header>
 
       {/* Main Dashboard Body */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full space-y-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full space-y-6">
         
+        {/* ImgBB API Key Modal / Dropdown Banner */}
+        {showApiKeySettings && (
+          <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-3xl p-5 shadow-lg relative transition-all">
+            <button
+              onClick={() => setShowApiKeySettings(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 p-1"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="max-w-2xl space-y-3">
+              <div className="flex items-center space-x-2 text-wood-900 font-bold text-sm">
+                <Key className="w-4 h-4 text-amber-600" />
+                <span>ImgBB API Key එක සකසන්න (නොමිලේ ලබාගත හැක)</span>
+              </div>
+              <p className="text-xs text-gray-600 leading-relaxed">
+                පින්තූර පරිගණකයෙන් හෝ දුරකථනයෙන් සෘජුවම 100KB වලට compress කර Upload කිරීමට ImgBB API Key එක භාවිතා වේ.
+                ඔබට තවමත් Key එකක් නොමැති නම්,{' '}
+                <a
+                  href="https://api.imgbb.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-amber-700 font-bold underline hover:text-amber-900 inline-flex items-center space-x-0.5"
+                >
+                  <span>api.imgbb.com වෙත ගොස් නොමිලේ තත්පර 30කින් ලබාගන්න</span>
+                  <ExternalLink className="w-3 h-3 ml-0.5 inline" />
+                </a>.
+              </p>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
+                <input
+                  type="text"
+                  value={tempApiKey}
+                  onChange={(e) => setTempApiKey(e.target.value)}
+                  placeholder="ඔබේ 32-character ImgBB API Key එක මෙතැනට paste කරන්න..."
+                  className="flex-grow border border-amber-300 bg-white p-2.5 rounded-xl text-xs font-mono focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleSaveApiKey(tempApiKey)}
+                  className="bg-amber-600 hover:bg-amber-500 text-white font-bold px-5 py-2.5 rounded-xl text-xs transition shadow flex items-center justify-center space-x-1.5"
+                >
+                  {apiKeySavedSuccess ? (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Saved!</span>
+                    </>
+                  ) : (
+                    <span>Save Key</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Statistics & Tabs */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           
@@ -251,40 +436,46 @@ export default function AdminDashboardPage() {
             </button>
           </div>
 
-          <div className="text-xs text-gray-500 font-medium">
-            Database Status: <span className="text-emerald-600 font-semibold">● Connected (SQLite)</span>
+          <div className="text-xs text-gray-500 font-medium flex items-center space-x-2">
+            <span>Storage: <span className="text-emerald-600 font-semibold">● Local Storage Active</span></span>
+            {imgbbApiKey && (
+              <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 font-semibold">
+                ● ImgBB Ready
+              </span>
+            )}
           </div>
         </div>
+
+        {/* Feedback Alert */}
+        {feedback && (
+          <div
+            className={`p-4 rounded-2xl flex items-center space-x-3 text-xs sm:text-sm ${
+              feedback.type === 'success'
+                ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                : 'bg-rose-50 border border-rose-200 text-rose-800'
+            }`}
+          >
+            {feedback.type === 'success' ? (
+              <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-emerald-600" />
+            ) : (
+              <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-600" />
+            )}
+            <span className="font-medium">{feedback.text}</span>
+          </div>
+        )}
 
         {/* Tab 1: Products Management */}
         {activeTab === 'products' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
-            {/* Add Product Form */}
-            <div className="bg-white p-6 rounded-3xl shadow-md border border-amber-100 space-y-5 h-fit">
-              <div className="flex items-center space-x-2 border-b border-gray-100 pb-3">
+            {/* Add New Product Form */}
+            <div className="bg-white rounded-3xl shadow-md border border-amber-100 p-6 space-y-4">
+              <div className="flex items-center space-x-2 border-b border-amber-100 pb-3">
                 <PlusCircle className="w-5 h-5 text-amber-600" />
                 <h3 className="font-bold text-base text-wood-900">අලුත් නිර්මාණයක් ඇතුළත් කරන්න</h3>
               </div>
 
-              {feedback && (
-                <div
-                  className={`p-3 rounded-xl text-xs flex items-center space-x-2 ${
-                    feedback.type === 'success'
-                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                      : 'bg-rose-50 text-rose-800 border border-rose-200'
-                  }`}
-                >
-                  {feedback.type === 'success' ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                  ) : (
-                    <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
-                  )}
-                  <span>{feedback.text}</span>
-                </div>
-              )}
-
-              <form onSubmit={handleAddProduct} className="space-y-3.5">
+              <form onSubmit={handleAddProduct} className="space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
                     නම (Title)
@@ -343,17 +534,185 @@ export default function AdminDashboardPage() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    Photo URL
-                  </label>
-                  <input
-                    type="url"
-                    required
-                    value={image}
-                    onChange={(e) => setImage(e.target.value)}
-                    className="w-full border border-gray-200 p-2.5 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                  />
+                {/* ADVANCED PHOTO UPLOAD / COMPRESSION SECTION */}
+                <div className="space-y-2 pt-1 border-t border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-semibold text-gray-700">
+                      නිර්මාණයේ පින්තූරය (Product Photo)
+                    </label>
+
+                    {/* Mode Toggle */}
+                    <div className="flex items-center space-x-1 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => setImageInputMode('upload')}
+                        className={`px-2 py-0.5 rounded-md font-medium transition ${
+                          imageInputMode === 'upload'
+                            ? 'bg-amber-100 text-amber-900 font-bold'
+                            : 'text-gray-500 hover:text-gray-800'
+                        }`}
+                      >
+                        Upload (100KB)
+                      </button>
+                      <span>|</span>
+                      <button
+                        type="button"
+                        onClick={() => setImageInputMode('url')}
+                        className={`px-2 py-0.5 rounded-md font-medium transition ${
+                          imageInputMode === 'url'
+                            ? 'bg-amber-100 text-amber-900 font-bold'
+                            : 'text-gray-500 hover:text-gray-800'
+                        }`}
+                      >
+                        URL එකක්
+                      </button>
+                    </div>
+                  </div>
+
+                  {imageInputMode === 'upload' ? (
+                    <div className="space-y-2">
+                      {/* Hidden File Input */}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/png, image/jpeg, image/webp"
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
+
+                      {/* If Image is not uploaded yet or during upload */}
+                      {!image && uploadStatus !== 'success' ? (
+                        <div
+                          onDragOver={handleDragOver}
+                          onDragLeave={handleDragLeave}
+                          onDrop={handleDrop}
+                          onClick={() => {
+                            if (!imgbbApiKey) {
+                              setShowApiKeySettings(true);
+                            } else {
+                              fileInputRef.current?.click();
+                            }
+                          }}
+                          className={`border-2 border-dashed rounded-2xl p-4 text-center cursor-pointer transition flex flex-col items-center justify-center space-y-2 ${
+                            isDragging
+                              ? 'border-amber-500 bg-amber-50/80 scale-[1.01]'
+                              : 'border-amber-300/80 bg-amber-50/30 hover:bg-amber-50/60 hover:border-amber-400'
+                          }`}
+                        >
+                          {uploadStatus === 'compressing' ? (
+                            <div className="py-2 flex flex-col items-center space-y-1 text-amber-800">
+                              <Loader2 className="w-6 h-6 animate-spin text-amber-600" />
+                              <span className="text-xs font-semibold">100KB වලට Compress කරමින් පවතී...</span>
+                              {compressionInfo && (
+                                <span className="text-[11px] text-gray-500">
+                                  {compressionInfo.originalKB} KB ➡️ {compressionInfo.compressedKB} KB
+                                </span>
+                              )}
+                            </div>
+                          ) : uploadStatus === 'uploading' ? (
+                            <div className="py-2 flex flex-col items-center space-y-1 text-amber-800">
+                              <Loader2 className="w-6 h-6 animate-spin text-amber-600" />
+                              <span className="text-xs font-semibold">ImgBB වෙත Upload වෙමින් පවතී...</span>
+                              <span className="text-[10px] text-gray-500">කරුණාකර මොහොතක් රැඳෙන්න</span>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-700">
+                                <UploadCloud className="w-5 h-5" />
+                              </div>
+                              <div className="text-xs text-wood-900 font-semibold">
+                                පින්තූරය තෝරන්න (Select Photo)
+                              </div>
+                              <p className="text-[10px] text-gray-500 max-w-[200px] leading-tight">
+                                මෙතැන Click කරන්න හෝ පින්තූරය Drag කරන්න. Automatic ලෙස ~100KB වලට compress වී ImgBB වෙත upload වේ.
+                              </p>
+                              {!imgbbApiKey && (
+                                <span className="inline-block mt-1 text-[10px] bg-amber-200/70 text-amber-900 px-2 py-0.5 rounded-full font-bold">
+                                  ⚠️ Click කර ImgBB Key එක සකසන්න
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      ) : (
+                        /* Uploaded Success Preview Box */
+                        <div className="bg-amber-50/50 border border-amber-200 rounded-2xl p-3 flex items-center space-x-3">
+                          <img
+                            src={previewDataUrl || image}
+                            alt="Uploaded Preview"
+                            className="w-16 h-16 object-cover rounded-xl border border-amber-300 flex-shrink-0 shadow-sm"
+                          />
+                          <div className="flex-grow space-y-1 min-w-0">
+                            <div className="flex items-center space-x-1 text-emerald-700 font-semibold text-xs">
+                              <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-600" />
+                              <span>සාර්ථකව Upload විය!</span>
+                            </div>
+                            {compressionInfo && (
+                              <div className="text-[10px] text-gray-600 flex items-center space-x-1">
+                                <Sparkles className="w-3 h-3 text-amber-600 flex-shrink-0" />
+                                <span>{compressionInfo.originalKB} KB ➡️ <strong className="text-wood-900">{compressionInfo.compressedKB} KB</strong> (Compress විය)</span>
+                              </div>
+                            )}
+                            <div className="text-[10px] text-amber-800 truncate" title={image}>
+                              {image}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleClearImage}
+                            className="text-gray-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition flex-shrink-0"
+                            title="පින්තූරය ඉවත් කරන්න"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Upload Error Message */}
+                      {uploadError && (
+                        <div className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 p-2 rounded-xl flex items-start space-x-1.5">
+                          <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-600 mt-0.5" />
+                          <div className="flex-grow">
+                            <span>{uploadError}</span>
+                            {!imgbbApiKey && (
+                              <button
+                                type="button"
+                                onClick={() => setShowApiKeySettings(true)}
+                                className="block mt-1 text-amber-800 underline font-bold"
+                              >
+                                ImgBB Key එක මෙතැනින් ඇතුළත් කරන්න
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* Manual URL input fallback */
+                    <div>
+                      <input
+                        type="url"
+                        value={image}
+                        onChange={(e) => {
+                          setImage(e.target.value);
+                          setPreviewDataUrl(e.target.value);
+                        }}
+                        placeholder="https://..."
+                        className="w-full border border-gray-200 p-2.5 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none font-mono"
+                      />
+                      {image && (
+                        <div className="mt-2 flex items-center space-x-2">
+                          <img
+                            src={image}
+                            alt="URL Preview"
+                            className="w-12 h-12 object-cover rounded-lg border border-amber-200"
+                            onError={(e) => ((e.target as HTMLElement).style.display = 'none')}
+                          />
+                          <span className="text-[11px] text-emerald-700">URL එක සක්‍රියයි</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -371,8 +730,8 @@ export default function AdminDashboardPage() {
 
                 <button
                   type="submit"
-                  disabled={isSubmitting}
-                  className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 rounded-xl transition shadow text-xs flex items-center justify-center space-x-1.5 disabled:opacity-50"
+                  disabled={isSubmitting || uploadStatus === 'compressing' || uploadStatus === 'uploading'}
+                  className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 rounded-xl transition shadow text-xs flex items-center justify-center space-x-1.5 disabled:opacity-50 cursor-pointer"
                 >
                   {isSubmitting ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -395,46 +754,47 @@ export default function AdminDashboardPage() {
               {loading ? (
                 <div className="text-center py-12 text-gray-400">
                   <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-                  <span>දත්ත පූරණය වෙමින් පවතී...</span>
+                  <span>පූරණය වෙමින් පවතී...</span>
                 </div>
               ) : products.length === 0 ? (
-                <p className="text-gray-500 text-center py-10">දැනට නිර්මාණ කිසිවක් නැත.</p>
+                <p className="text-gray-500 text-center py-12">
+                  තවමත් කිසිදු නිර්මාණයක් Catalog එකට ඇතුළත් කර නොමැත.
+                </p>
               ) : (
                 <div className="overflow-x-auto rounded-2xl border border-gray-100">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-wood-50 text-wood-900 uppercase font-semibold">
                       <tr>
-                        <th className="p-3">නිර්මාණය</th>
+                        <th className="p-3">පින්තූරය</th>
+                        <th className="p-3">නම</th>
                         <th className="p-3">කාණ්ඩය</th>
                         <th className="p-3">දැව වර්ගය</th>
                         <th className="p-3">මිල</th>
-                        <th className="p-3 text-right">Action</th>
+                        <th className="p-3 text-right">ක්‍රියාමාර්ග</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {products.map((p) => (
                         <tr key={p.id} className="hover:bg-amber-50/40 transition">
-                          <td className="p-3 flex items-center space-x-3">
-                            <div className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100 border">
-                              <Image
-                                src={p.image}
-                                alt={p.title}
-                                fill
-                                className="object-cover"
-                              />
-                            </div>
-                            <span className="font-semibold text-wood-950">{p.title}</span>
+                          <td className="p-3">
+                            <img
+                              src={p.image}
+                              alt={p.title}
+                              className="w-10 h-10 object-cover rounded-lg border border-amber-100 shadow-sm"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=800&q=80';
+                              }}
+                            />
                           </td>
+                          <td className="p-3 font-semibold text-wood-900">{p.title}</td>
                           <td className="p-3 text-gray-600">{p.category}</td>
                           <td className="p-3 text-amber-800 font-medium">{p.wood}</td>
-                          <td className="p-3 font-bold text-wood-900">
-                            රු. {p.price.toLocaleString()}
-                          </td>
+                          <td className="p-3 font-bold text-amber-700">රු. {p.price.toLocaleString()}</td>
                           <td className="p-3 text-right">
                             <button
                               onClick={() => handleDeleteProduct(p.id)}
-                              className="text-rose-600 hover:text-rose-800 p-1.5 hover:bg-rose-50 rounded-lg transition"
-                              title="Delete Product"
+                              className="text-gray-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition"
+                              title="නිර්මාණය ඉවත් කරන්න"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -450,7 +810,7 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* Tab 2: Custom Inquiries */}
+        {/* Tab 2: Inquiries Management */}
         {activeTab === 'inquiries' && (
           <div className="bg-white rounded-3xl shadow-md border border-amber-100 p-6 space-y-4">
             <h3 className="font-bold text-base text-wood-900">
