@@ -25,7 +25,8 @@ import {
   Check,
   RefreshCw,
   X,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Pencil
 } from 'lucide-react';
 import { compressImageToTarget, uploadToImgBB, CompressionResult, DEFAULT_IMGBB_API_KEY } from '@/lib/imageUpload';
 
@@ -80,6 +81,22 @@ export default function AdminDashboardPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [previewDataUrl, setPreviewDataUrl] = useState<string>('');
   const [isDragging, setIsDragging] = useState(false);
+
+  // Edit Modal States
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editCategory, setEditCategory] = useState('බිත්ති සැරසිලි හා අලංකාර නිර්මාණ');
+  const [editWood, setEditWood] = useState('');
+  const [editPrice, setEditPrice] = useState('');
+  const [editImage, setEditImage] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  const [editImageMode, setEditImageMode] = useState<'upload' | 'url'>('upload');
+  const [editUploadStatus, setEditUploadStatus] = useState<'idle' | 'compressing' | 'uploading' | 'success' | 'error'>('idle');
+  const [editCompressionInfo, setEditCompressionInfo] = useState<{ originalKB: number; compressedKB: number } | null>(null);
+  const [editUploadError, setEditUploadError] = useState<string | null>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
 
   const initialDefaultProducts: Product[] = [
     {
@@ -283,6 +300,92 @@ export default function AdminDashboardPage() {
     const updated = products.filter((p) => p.id !== id);
     setProducts(updated);
     localStorage.setItem('ceylon_products', JSON.stringify(updated));
+  };
+
+  const handleStartEdit = (p: Product) => {
+    setEditingProduct(p);
+    setEditTitle(p.title);
+    setEditCategory(p.category);
+    setEditWood(p.wood);
+    setEditPrice(p.price.toString());
+    setEditImage(p.image);
+    setEditDescription(p.description || '');
+    setEditUploadStatus('idle');
+    setEditCompressionInfo(null);
+    setEditUploadError(null);
+    setEditImageMode('upload');
+  };
+
+  const handleCloseEdit = () => {
+    setEditingProduct(null);
+    setEditUploadStatus('idle');
+    setEditCompressionInfo(null);
+    setEditUploadError(null);
+  };
+
+  const handleProcessAndUploadEditImage = async (file: File) => {
+    if (!file) return;
+    setEditUploadError(null);
+    setEditUploadStatus('compressing');
+
+    try {
+      const compResult = await compressImageToTarget(file, 100);
+      setEditCompressionInfo({
+        originalKB: compResult.originalKB,
+        compressedKB: compResult.compressedKB,
+      });
+
+      const keyToUse = imgbbApiKey.trim();
+      if (!keyToUse) {
+        setEditUploadStatus('error');
+        setEditUploadError('ImgBB API Key එකක් ඇතුළත් කර නොමැත.');
+        return;
+      }
+
+      setEditUploadStatus('uploading');
+      const directUrl = await uploadToImgBB(compResult.blob, keyToUse);
+      setEditImage(directUrl);
+      setEditUploadStatus('success');
+    } catch (err: unknown) {
+      setEditUploadStatus('error');
+      setEditUploadError(err instanceof Error ? err.message : 'පින්තූරය upload කිරීම අසාර්ථක විය.');
+    }
+  };
+
+  const handleSaveEditProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProduct) return;
+    setIsSavingEdit(true);
+
+    try {
+      if (!editImage.trim()) {
+        throw new Error('කරුණාකර නිර්මාණයේ පින්තූරයක් ඇතුළත් කරන්න.');
+      }
+
+      const updatedProduct: Product = {
+        ...editingProduct,
+        title: editTitle.trim(),
+        category: editCategory,
+        wood: editWood.trim(),
+        price: parseFloat(editPrice) || 0,
+        image: editImage.trim(),
+        description: editDescription.trim(),
+      };
+
+      const updatedList = products.map((p) => (p.id === editingProduct.id ? updatedProduct : p));
+      setProducts(updatedList);
+      localStorage.setItem('ceylon_products', JSON.stringify(updatedList));
+
+      setFeedback({
+        type: 'success',
+        text: `"${updatedProduct.title}" නිර්මාණය සාර්ථකව යාවත්කාලීන (Update) කරන ලදී!`,
+      });
+      handleCloseEdit();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'දෝෂයක් සිදුවිය.');
+    } finally {
+      setIsSavingEdit(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -792,13 +895,22 @@ export default function AdminDashboardPage() {
                           <td className="p-3 text-amber-800 font-medium">{p.wood}</td>
                           <td className="p-3 font-bold text-amber-700">රු. {p.price.toLocaleString()}</td>
                           <td className="p-3 text-right">
-                            <button
-                              onClick={() => handleDeleteProduct(p.id)}
-                              className="text-gray-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition"
-                              title="නිර්මාණය ඉවත් කරන්න"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center justify-end space-x-1">
+                              <button
+                                onClick={() => handleStartEdit(p)}
+                                className="text-gray-400 hover:text-amber-600 p-1.5 rounded-lg hover:bg-amber-50 transition"
+                                title="නිර්මාණය සංස්කරණය කරන්න (Edit)"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteProduct(p.id)}
+                                className="text-gray-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition"
+                                title="නිර්මාණය ඉවත් කරන්න (Delete)"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -877,6 +989,246 @@ export default function AdminDashboardPage() {
                 </table>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Edit Product Modal */}
+        {editingProduct && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-3xl shadow-2xl border border-amber-200 max-w-lg w-full p-6 space-y-5 my-8 relative">
+              
+              {/* Modal Header */}
+              <div className="flex items-center justify-between border-b border-amber-100 pb-3">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700">
+                    <Pencil className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base text-wood-900">නිර්මාණය සංස්කරණය කරන්න (Edit)</h3>
+                    <span className="text-[11px] text-gray-500">ID: #{editingProduct.id}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCloseEdit}
+                  className="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition"
+                  title="වසන්න"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Modal Form */}
+              <form onSubmit={handleSaveEditProduct} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    නම (Title)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="w-full border border-gray-200 p-2.5 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    කාණ්ඩය (Category)
+                  </label>
+                  <select
+                    value={editCategory}
+                    onChange={(e) => setEditCategory(e.target.value)}
+                    className="w-full border border-gray-200 p-2.5 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  >
+                    <option value="බිත්ති සැරසිලි හා අලංකාර නිර්මාණ">1. බිත්ති සැරසිලි හා අලංකාර නිර්මාණ (Wall Decor & Accessories)</option>
+                    <option value="ලී සෙල්ලම් බඩු හා මුළුතැන්ගෙයි උපකරණ">2. ලී සෙල්ලම් බඩු හා මුළුතැන්ගෙයි උපකරණ (Wooden Toys & Kitchenware)</option>
+                    <option value="විශේෂිත ලී නිර්මාණ හා ඇණවුම් අනුව නිර්මාණ">3. විශේෂිත ලී නිර්මාණ හා ඇණවුම් අනුව නිර්මාණ (Special Wooden Creations & Custom Orders)</option>
+                    <option value="වෙනත් නිර්මාණ (Other)">වෙනත් නිර්මාණ (Other Creations)</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      දැව වර්ගය (Wood Type)
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editWood}
+                      onChange={(e) => setEditWood(e.target.value)}
+                      className="w-full border border-gray-200 p-2.5 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      මිල (රු. / LKR)
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      value={editPrice}
+                      onChange={(e) => setEditPrice(e.target.value)}
+                      className="w-full border border-gray-200 p-2.5 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Photo Edit Section */}
+                <div className="space-y-2 pt-1 border-t border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-semibold text-gray-700">
+                      පින්තූරය (Photo)
+                    </label>
+                    <div className="flex items-center space-x-1 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => setEditImageMode('upload')}
+                        className={`px-2 py-0.5 rounded-md font-medium transition ${
+                          editImageMode === 'upload'
+                            ? 'bg-amber-100 text-amber-900 font-bold'
+                            : 'text-gray-500 hover:text-gray-800'
+                        }`}
+                      >
+                        Upload (100KB)
+                      </button>
+                      <span>|</span>
+                      <button
+                        type="button"
+                        onClick={() => setEditImageMode('url')}
+                        className={`px-2 py-0.5 rounded-md font-medium transition ${
+                          editImageMode === 'url'
+                            ? 'bg-amber-100 text-amber-900 font-bold'
+                            : 'text-gray-500 hover:text-gray-800'
+                        }`}
+                      >
+                        URL
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Current Image Preview & Change Box */}
+                  <div className="flex items-center space-x-3 bg-amber-50/40 p-2.5 rounded-2xl border border-amber-200">
+                    <img
+                      src={editImage || 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=800&q=80'}
+                      alt="Current Preview"
+                      className="w-14 h-14 object-cover rounded-xl border border-amber-300 flex-shrink-0 shadow-sm"
+                    />
+                    <div className="flex-grow min-w-0 space-y-1">
+                      {editUploadStatus === 'compressing' ? (
+                        <div className="flex items-center space-x-1.5 text-xs text-amber-800">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
+                          <span>100KB වලට Compress කරමින්...</span>
+                        </div>
+                      ) : editUploadStatus === 'uploading' ? (
+                        <div className="flex items-center space-x-1.5 text-xs text-amber-800">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
+                          <span>ImgBB වෙත Upload වෙමින්...</span>
+                        </div>
+                      ) : editUploadStatus === 'success' ? (
+                        <div className="space-y-0.5">
+                          <div className="flex items-center space-x-1 text-emerald-700 font-semibold text-xs">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>නව පින්තූරය Upload විය!</span>
+                          </div>
+                          {editCompressionInfo && (
+                            <div className="text-[10px] text-gray-500">
+                              {editCompressionInfo.originalKB} KB ➡️ {editCompressionInfo.compressedKB} KB
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-700 block truncate" title={editImage}>
+                          දැනට ඇති පින්තූරය
+                        </span>
+                      )}
+
+                      {editImageMode === 'upload' ? (
+                        <div>
+                          <input
+                            ref={editFileInputRef}
+                            type="file"
+                            accept="image/png, image/jpeg, image/webp"
+                            onChange={(e) => {
+                              if (e.target.files && e.target.files[0]) {
+                                handleProcessAndUploadEditImage(e.target.files[0]);
+                              }
+                            }}
+                            className="hidden"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => editFileInputRef.current?.click()}
+                            disabled={editUploadStatus === 'compressing' || editUploadStatus === 'uploading'}
+                            className="inline-flex items-center space-x-1 bg-amber-600 hover:bg-amber-500 text-white px-2.5 py-1 rounded-lg text-[11px] font-semibold transition shadow-sm disabled:opacity-50 cursor-pointer"
+                          >
+                            <UploadCloud className="w-3 h-3" />
+                            <span>නව පින්තූරයක් තෝරන්න</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <input
+                          type="url"
+                          value={editImage}
+                          onChange={(e) => setEditImage(e.target.value)}
+                          placeholder="https://..."
+                          className="w-full border border-gray-200 p-1.5 rounded-lg text-xs font-mono"
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {editUploadError && (
+                    <div className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 p-2 rounded-xl flex items-center space-x-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 text-rose-600" />
+                      <span>{editUploadError}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    විස්තර (Description - Optional)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    placeholder="කැටයම පිළිබඳ කෙටි හැඳින්වීමක්..."
+                    className="w-full border border-gray-200 p-2.5 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  />
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center justify-end space-x-2 pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={handleCloseEdit}
+                    className="px-4 py-2.5 rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-100 transition border border-gray-200 cursor-pointer"
+                  >
+                    අවලංගු කරන්න (Cancel)
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingEdit || editUploadStatus === 'compressing' || editUploadStatus === 'uploading'}
+                    className="bg-amber-600 hover:bg-amber-500 text-white font-bold px-5 py-2.5 rounded-xl text-xs transition shadow flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer"
+                  >
+                    {isSavingEdit ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4" />
+                        <span>වෙනස්කම් සුරකින්න (Save Changes)</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+
+            </div>
           </div>
         )}
 
