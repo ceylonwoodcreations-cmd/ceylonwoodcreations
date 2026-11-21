@@ -4,10 +4,12 @@ import React from 'react';
 import Link from 'next/link';
 import { ArrowDown, MessageCircle, Award, Sparkles } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
+import { useSettings } from '@/context/SettingsContext';
 
 export default function Hero() {
   const { t } = useLanguage();
-  const whatsappNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '94700000000';
+  const { settings } = useSettings();
+  const whatsappNumber = settings.whatsappNumber || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '94700000000';
   const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent('Hello Ceylon Wood Creations! I would like to inquire about your handcrafted woodwork.')}`;
 
   return (

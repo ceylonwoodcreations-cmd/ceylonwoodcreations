@@ -3,10 +3,12 @@
 import React, { useState } from 'react';
 import { MessageCircle, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
+import { useSettings } from '@/context/SettingsContext';
 
 export default function CustomOrderSection() {
   const { t } = useLanguage();
-  const whatsappNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '94700000000';
+  const { settings } = useSettings();
+  const whatsappNumber = settings.whatsappNumber || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '94700000000';
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');

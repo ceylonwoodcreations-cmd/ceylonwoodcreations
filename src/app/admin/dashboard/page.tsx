@@ -26,9 +26,14 @@ import {
   RefreshCw,
   X,
   Link as LinkIcon,
-  Pencil
+  Pencil,
+  MapPin,
+  MessageCircle,
+  Save,
+  RotateCcw
 } from 'lucide-react';
 import { compressImageToTarget, uploadToImgBB, CompressionResult, DEFAULT_IMGBB_API_KEY } from '@/lib/imageUpload';
+import { useSettings, formatWhatsAppNumber, defaultSettings } from '@/context/SettingsContext';
 
 interface Product {
   id: number;
@@ -54,10 +59,25 @@ export default function AdminDashboardPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [activeTab, setActiveTab] = useState<'products' | 'inquiries'>('products');
+  const { settings, updateSettings, resetSettings } = useSettings();
+  const [activeTab, setActiveTab] = useState<'products' | 'inquiries' | 'settings'>('products');
   const [products, setProducts] = useState<Product[]>([]);
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Settings State
+  const [formWhatsApp, setFormWhatsApp] = useState(settings.whatsappNumber);
+  const [formDisplayPhone, setFormDisplayPhone] = useState(settings.displayPhone);
+  const [formAddressSi, setFormAddressSi] = useState(settings.addressSi);
+  const [formAddressEn, setFormAddressEn] = useState(settings.addressEn);
+  const [settingsSaveSuccess, setSettingsSaveSuccess] = useState(false);
+
+  useEffect(() => {
+    setFormWhatsApp(settings.whatsappNumber);
+    setFormDisplayPhone(settings.displayPhone);
+    setFormAddressSi(settings.addressSi);
+    setFormAddressEn(settings.addressEn);
+  }, [settings]);
 
   // Form states for new product
   const [title, setTitle] = useState('');
@@ -182,6 +202,32 @@ export default function AdminDashboardPage() {
     setImgbbApiKey(cleanKey);
     setApiKeySavedSuccess(true);
     setTimeout(() => setApiKeySavedSuccess(false), 2500);
+  };
+
+  const handleSaveSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanedWA = formatWhatsAppNumber(formWhatsApp);
+    updateSettings({
+      whatsappNumber: cleanedWA,
+      displayPhone: formDisplayPhone.trim(),
+      addressSi: formAddressSi.trim(),
+      addressEn: formAddressEn.trim(),
+    });
+    setFormWhatsApp(cleanedWA);
+    setSettingsSaveSuccess(true);
+    setTimeout(() => setSettingsSaveSuccess(false), 3000);
+  };
+
+  const handleResetSettings = () => {
+    if (confirm('සියලුම සම්බන්ධතා තොරතුරු මුල් පෙරනිමි අගයන්ට (Default) නැවත සැකසීමට අවශ්‍යද?')) {
+      resetSettings();
+      setFormWhatsApp(defaultSettings.whatsappNumber);
+      setFormDisplayPhone(defaultSettings.displayPhone);
+      setFormAddressSi(defaultSettings.addressSi);
+      setFormAddressEn(defaultSettings.addressEn);
+      setSettingsSaveSuccess(true);
+      setTimeout(() => setSettingsSaveSuccess(false), 3000);
+    }
   };
 
   // Image processing & upload
@@ -514,10 +560,10 @@ export default function AdminDashboardPage() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           
           {/* Tab buttons */}
-          <div className="flex space-x-2 bg-amber-100/60 p-1 rounded-2xl border border-amber-200">
+          <div className="flex flex-wrap gap-2 bg-amber-100/60 p-1.5 rounded-2xl border border-amber-200">
             <button
               onClick={() => setActiveTab('products')}
-              className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition ${
+              className={`flex items-center space-x-2 px-4 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition ${
                 activeTab === 'products'
                   ? 'bg-wood-900 text-amber-300 shadow-md'
                   : 'text-wood-800 hover:text-wood-950'
@@ -529,7 +575,7 @@ export default function AdminDashboardPage() {
 
             <button
               onClick={() => setActiveTab('inquiries')}
-              className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition ${
+              className={`flex items-center space-x-2 px-4 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition ${
                 activeTab === 'inquiries'
                   ? 'bg-wood-900 text-amber-300 shadow-md'
                   : 'text-wood-800 hover:text-wood-950'
@@ -537,6 +583,18 @@ export default function AdminDashboardPage() {
             >
               <MessageSquare className="w-4 h-4" />
               <span>පාරිභෝගික ඇණවුම් ({inquiries.length})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`flex items-center space-x-2 px-4 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition ${
+                activeTab === 'settings'
+                  ? 'bg-wood-900 text-amber-300 shadow-md'
+                  : 'text-wood-800 hover:text-wood-950'
+              }`}
+            >
+              <Settings className="w-4 h-4" />
+              <span>සම්බන්ධතා & WhatsApp සැකසුම්</span>
             </button>
           </div>
 
@@ -989,6 +1047,267 @@ export default function AdminDashboardPage() {
                 </table>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Settings Tab */}
+        {activeTab === 'settings' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-amber-100 space-y-6">
+              
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-amber-100 pb-5">
+                <div>
+                  <div className="flex items-center space-x-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700">
+                      <Settings className="w-5 h-5" />
+                    </div>
+                    <h2 className="text-xl sm:text-2xl font-bold text-wood-900 brand-font">
+                      සම්බන්ධතා සහ WhatsApp සැකසුම් (Contact & WhatsApp Settings)
+                    </h2>
+                  </div>
+                  <p className="text-xs sm:text-sm text-gray-500 mt-1.5 leading-relaxed">
+                    වෙබ් අඩවියේ ඇති සියලුම WhatsApp ඇණවුම් බොත්තම්, Footer එකේ දුරකථන අංකය සහ ප්‍රදර්ශනාගාර ලිපිනයන් මෙතැනින් එකවර වෙනස් කළ හැක.
+                  </p>
+                </div>
+
+                {settingsSaveSuccess && (
+                  <div className="inline-flex items-center space-x-1.5 bg-emerald-50 text-emerald-800 border border-emerald-300 px-4 py-2 rounded-xl text-xs font-semibold shadow-sm animate-pulse">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                    <span>සැකසුම් සාර්ථකව සුරැකිණි! (Saved!)</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                
+                {/* Form Column */}
+                <form onSubmit={handleSaveSettings} className="lg:col-span-7 space-y-5">
+                  
+                  {/* WhatsApp Number */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-wood-900 uppercase tracking-wider">
+                      WhatsApp දුරකථන අංකය (Customer WhatsApp Order Number)
+                    </label>
+                    <p className="text-[11px] text-gray-500">
+                      පාරිභෝගිකයින් &quot;ඇණවුම් කරන්න&quot;, &quot;WhatsApp හරහා අමතන්න&quot;, &quot;මිල ගණන් විමසන්න&quot; ක්ලික් කළ විට පණිවිඩ ලැබෙන WhatsApp අංකය.
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                      <div className="relative flex-grow">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-emerald-600">
+                          <MessageCircle className="w-4 h-4 fill-current" />
+                        </div>
+                        <input
+                          type="text"
+                          required
+                          value={formWhatsApp}
+                          onChange={(e) => setFormWhatsApp(e.target.value)}
+                          placeholder="උදා: 0771234567 හෝ 94771234567"
+                          className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-xl text-xs sm:text-sm font-mono focus:ring-2 focus:ring-amber-500 focus:outline-none bg-wood-50/20"
+                        />
+                      </div>
+                      
+                      {/* Test WhatsApp Link Button */}
+                      <a
+                        href={`https://wa.me/${formatWhatsAppNumber(formWhatsApp)}?text=${encodeURIComponent('ආයුබෝවන් Ceylon Wood Creations! මෙය පරීක්ෂණ පණිවිඩයකි (Test Message).')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center space-x-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition flex-shrink-0 cursor-pointer"
+                        title="ඔබේ WhatsApp ගිණුමට නිවැරදිව පණිවිඩයක් යැවිය හැකිදැයි පරීක්ෂා කරන්න"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>WhatsApp පරීක්ෂා කරන්න (Test)</span>
+                      </a>
+                    </div>
+                    <span className="text-[10px] text-gray-500 block">
+                      ක්‍රියාකාරී ජාත්‍යන්තර අංකය: <code className="text-emerald-700 font-bold font-mono">+{formatWhatsAppNumber(formWhatsApp)}</code> (ලංකාවේ 94 කේතය ස්වයංක්‍රීයව එක් කෙරේ)
+                    </span>
+                  </div>
+
+                  {/* Display Phone in Footer */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-wood-900 uppercase tracking-wider">
+                      Footer එකේ දිස්වන දුරකථන අංකය (Display Phone for Footer)
+                    </label>
+                    <p className="text-[11px] text-gray-500">
+                      වෙබ් අඩවියේ පතුලේ (Footer) &quot;සම්බන්ධ වන්න&quot; කොටසේ ප්‍රදර්ශනය වන දුරකථන අංකය.
+                    </p>
+                    <div className="relative pt-1">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-amber-600">
+                        <Phone className="w-4 h-4" />
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        value={formDisplayPhone}
+                        onChange={(e) => setFormDisplayPhone(e.target.value)}
+                        placeholder="උදා: +94 70 000 0000 (WhatsApp / Voice)"
+                        className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none bg-wood-50/20"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Address Sinhala */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-wood-900 uppercase tracking-wider">
+                      ලිපිනය - සිංහල (Showroom Address - Sinhala)
+                    </label>
+                    <p className="text-[11px] text-gray-500">
+                      සිංහල භාෂාව තෝරා ඇති විට Footer එකේ දිස්වන ප්‍රදර්ශනාගාර ලිපිනය.
+                    </p>
+                    <div className="relative pt-1">
+                      <div className="absolute top-3.5 left-3.5 pointer-events-none text-amber-600">
+                        <MapPin className="w-4 h-4" />
+                      </div>
+                      <textarea
+                        rows={2}
+                        required
+                        value={formAddressSi}
+                        onChange={(e) => setFormAddressSi(e.target.value)}
+                        placeholder="උදා: නුවර පාර, මොරටුව / ගාල්ල, ශ්‍රී ලංකාව"
+                        className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none bg-wood-50/20"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Address English */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-wood-900 uppercase tracking-wider">
+                      Address - English (ඉංග්‍රීසි භාෂාවෙන් දිස්වන ලිපිනය)
+                    </label>
+                    <p className="text-[11px] text-gray-500">
+                      ඉංග්‍රීසි භාෂාව තෝරා ඇති විට Footer එකේ දිස්වන ප්‍රදර්ශනාගාර ලිපිනය.
+                    </p>
+                    <div className="relative pt-1">
+                      <div className="absolute top-3.5 left-3.5 pointer-events-none text-amber-600">
+                        <MapPin className="w-4 h-4" />
+                      </div>
+                      <textarea
+                        rows={2}
+                        required
+                        value={formAddressEn}
+                        onChange={(e) => setFormAddressEn(e.target.value)}
+                        placeholder="e.g. Kandy Road, Moratuwa / Galle, Sri Lanka"
+                        className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none bg-wood-50/20"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Submit / Reset Actions */}
+                  <div className="flex items-center space-x-3 pt-3 border-t border-gray-100">
+                    <button
+                      type="submit"
+                      className="bg-amber-600 hover:bg-amber-500 text-white font-bold px-6 py-3 rounded-xl text-xs sm:text-sm transition shadow-md hover:shadow-lg flex items-center space-x-2 cursor-pointer"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>සැකසුම් සුරකින්න (Save Settings)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleResetSettings}
+                      className="text-gray-500 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 font-semibold px-4 py-3 rounded-xl text-xs sm:text-sm transition flex items-center space-x-1.5 cursor-pointer"
+                      title="මුල් පෙරනිමි අගයන්ට නැවත සකසන්න"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      <span>මුල් තත්ත්වයට (Reset)</span>
+                    </button>
+                  </div>
+
+                </form>
+
+                {/* Live Preview / Impact Explainer Column */}
+                <div className="lg:col-span-5 bg-gradient-to-b from-wood-50 to-amber-50/50 rounded-2xl p-5 border border-amber-200/80 space-y-4">
+                  <div className="flex items-center space-x-2 text-wood-900 font-bold text-sm border-b border-amber-200 pb-2.5">
+                    <Sparkles className="w-4 h-4 text-amber-600" />
+                    <span>මෙම සැකසුම් යෙදෙන ස්ථාන (Live Preview)</span>
+                  </div>
+
+                  <div className="space-y-3 text-xs">
+                    
+                    {/* Hero Preview */}
+                    <div className="bg-white p-3 rounded-xl border border-amber-100 shadow-sm space-y-1">
+                      <div className="flex items-center justify-between text-gray-500 font-semibold text-[11px]">
+                        <span>1. මුල් පිටුවේ (Hero Section)</span>
+                        <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-[10px] font-semibold">Active</span>
+                      </div>
+                      <div className="flex items-center space-x-1.5 text-wood-900 pt-0.5">
+                        <span className="bg-emerald-600 text-white px-2 py-0.5 rounded text-[10px] font-semibold flex items-center space-x-1">
+                          <MessageCircle className="w-3 h-3 fill-current inline" />
+                          <span>WhatsApp හරහා අමතන්න</span>
+                        </span>
+                        <span className="text-gray-400">➡️</span>
+                        <span className="font-mono text-[11px] text-emerald-800 truncate">
+                          wa.me/{formatWhatsAppNumber(formWhatsApp)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Catalog Preview */}
+                    <div className="bg-white p-3 rounded-xl border border-amber-100 shadow-sm space-y-1">
+                      <div className="flex items-center justify-between text-gray-500 font-semibold text-[11px]">
+                        <span>2. නිර්මාණ එකතුව (Catalog Items)</span>
+                        <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-[10px] font-semibold">Active</span>
+                      </div>
+                      <div className="flex items-center space-x-1.5 text-wood-900 pt-0.5">
+                        <span className="bg-emerald-600 text-white px-2 py-0.5 rounded text-[10px] font-semibold flex items-center space-x-1">
+                          <MessageCircle className="w-3 h-3 fill-current inline" />
+                          <span>ඇණවුම් කරන්න</span>
+                        </span>
+                        <span className="text-gray-400">➡️</span>
+                        <span className="font-mono text-[11px] text-emerald-800 truncate">
+                          wa.me/{formatWhatsAppNumber(formWhatsApp)}?text=...
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Custom Orders Preview */}
+                    <div className="bg-white p-3 rounded-xl border border-amber-100 shadow-sm space-y-1">
+                      <div className="flex items-center justify-between text-gray-500 font-semibold text-[11px]">
+                        <span>3. විශේෂ ඇණවුම් (Custom Orders)</span>
+                        <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-[10px] font-semibold">Active</span>
+                      </div>
+                      <div className="flex items-center space-x-1.5 text-wood-900 pt-0.5">
+                        <span className="bg-wood-800 text-white px-2 py-0.5 rounded text-[10px] font-semibold flex items-center space-x-1">
+                          <MessageCircle className="w-3 h-3 fill-current text-emerald-400 inline" />
+                          <span>WhatsApp හරහා මිල ගණන් විමසන්න</span>
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-gray-500">
+                        පාරිභෝගිකයාගේ නම, දුරකථන අංකය සහ දැව වර්ගය සමඟ පණිවිඩය ලැබෙන්නේ ඉහත WhatsApp අංකයටයි.
+                      </p>
+                    </div>
+
+                    {/* Footer Preview */}
+                    <div className="bg-white p-3 rounded-xl border border-amber-100 shadow-sm space-y-1.5">
+                      <div className="flex items-center justify-between text-gray-500 font-semibold text-[11px]">
+                        <span>4. Footer (සම්බන්ධ වන්න කොටස)</span>
+                        <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-[10px] font-semibold">Active</span>
+                      </div>
+                      <div className="space-y-1 pt-0.5">
+                        <div className="flex items-center space-x-1.5 text-[11px] text-gray-700">
+                          <Phone className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                          <span className="font-medium">{formDisplayPhone || 'දුරකථන අංකයක් නැත'}</span>
+                        </div>
+                        <div className="flex items-start space-x-1.5 text-[11px] text-gray-700">
+                          <MapPin className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <span className="leading-tight">{formAddressSi || 'ලිපිනයක් නැත'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl text-emerald-900 text-xs flex items-center space-x-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                    <span>ඔබ Save Settings ක්ලික් කළ වහාම මෙම තොරතුරු සියලුම පිටුවල සජීවීව (Live) ක්‍රියාත්මක වේ.</span>
+                  </div>
+
+                </div>
+
+              </div>
+
+            </div>
           </div>
         )}
 

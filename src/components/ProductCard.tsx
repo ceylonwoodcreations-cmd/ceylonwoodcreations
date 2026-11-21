@@ -4,6 +4,7 @@ import React from 'react';
 import Image from 'next/image';
 import { Trees, ZoomIn, MessageCircle } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
+import { useSettings } from '@/context/SettingsContext';
 import { categoryEnMap } from '@/lib/translations';
 
 export interface ProductData {
@@ -23,7 +24,8 @@ interface ProductCardProps {
 
 export default function ProductCard({ product, onZoom }: ProductCardProps) {
   const { t, language } = useLanguage();
-  const whatsappNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '94700000000';
+  const { settings } = useSettings();
+  const whatsappNumber = settings.whatsappNumber || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '94700000000';
 
   const displayCategory = language === 'en' 
     ? (categoryEnMap[product.category] || product.category) 

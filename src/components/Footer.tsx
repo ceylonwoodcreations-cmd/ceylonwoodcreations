@@ -6,9 +6,18 @@ import Image from 'next/image';
 import logoImg from '../../public/logo.jpg';
 import { Phone, MapPin, Heart } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
+import { useSettings } from '@/context/SettingsContext';
 
 export default function Footer() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const { settings } = useSettings();
+
+  const currentAddress = language === 'en'
+    ? (settings.addressEn || t.footerAddress)
+    : (settings.addressSi || t.footerAddress);
+
+  const currentPhone = settings.displayPhone || '+94 70 000 0000 (WhatsApp / Voice)';
+  const cleanWhatsApp = settings.whatsappNumber || '94700000000';
 
   return (
     <footer className="bg-wood-950 text-amber-100 py-14 border-t-2 border-wood-800 shadow-2xl">
@@ -75,13 +84,18 @@ export default function Footer() {
             සම්බන්ධ වන්න (Contact)
           </h4>
           <div className="space-y-2.5 text-xs text-amber-100/90">
-            <div className="flex items-center space-x-2">
-              <Phone className="w-4 h-4 text-amber-400 flex-shrink-0" />
-              <span>+94 70 000 0000 (WhatsApp / Voice)</span>
-            </div>
+            <a
+              href={`https://wa.me/${cleanWhatsApp}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center space-x-2 hover:text-amber-300 transition group"
+            >
+              <Phone className="w-4 h-4 text-amber-400 flex-shrink-0 group-hover:scale-110 transition" />
+              <span>{currentPhone}</span>
+            </a>
             <div className="flex items-center space-x-2">
               <MapPin className="w-4 h-4 text-amber-400 flex-shrink-0" />
-              <span>{t.footerAddress}</span>
+              <span>{currentAddress}</span>
             </div>
           </div>
         </div>

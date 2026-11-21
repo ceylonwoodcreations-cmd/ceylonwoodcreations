@@ -5,6 +5,8 @@
 @tailwind utilities;
 
 :root {
+  --font-playfair: 'Playfair Display', serif;
+  --font-noto-sinhala: 'Noto Sans Sinhala', sans-serif;
   --background: #fdf8f6;
   --foreground: #271815;
 }

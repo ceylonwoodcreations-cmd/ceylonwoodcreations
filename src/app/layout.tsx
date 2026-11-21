@@ -1,21 +1,7 @@
 import type { Metadata } from 'next';
-import { Playfair_Display, Noto_Sans_Sinhala } from 'next/font/google';
 import './globals.css';
 import { LanguageProvider } from '@/context/LanguageContext';
-
-const playfair = Playfair_Display({
-  subsets: ['latin'],
-  variable: '--font-playfair',
-  weight: ['600', '700', '800'],
-  display: 'swap',
-});
-
-const notoSinhala = Noto_Sans_Sinhala({
-  subsets: ['sinhala'],
-  variable: '--font-noto-sinhala',
-  weight: ['400', '500', '600', '700'],
-  display: 'swap',
-});
+import { SettingsProvider } from '@/context/SettingsContext';
 
 export const metadata: Metadata = {
   title: 'Ceylon Wood Creations | ශ්‍රී ලාංකීය ලී කැටයම් කලාව',
@@ -29,10 +15,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="si" className={`${playfair.variable} ${notoSinhala.variable}`}>
+    <html lang="si">
       <body className="min-h-screen flex flex-col bg-wood-50 text-wood-900 antialiased selection:bg-amber-200">
         <LanguageProvider>
-          {children}
+          <SettingsProvider>
+            {children}
+          </SettingsProvider>
         </LanguageProvider>
       </body>
     </html>
