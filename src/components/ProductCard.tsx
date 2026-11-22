@@ -8,7 +8,7 @@ import { useSettings } from '@/context/SettingsContext';
 import { categoryEnMap } from '@/lib/translations';
 
 export interface ProductData {
-  id: number;
+  id: string | number;
   title: string;
   category: string;
   wood: string;

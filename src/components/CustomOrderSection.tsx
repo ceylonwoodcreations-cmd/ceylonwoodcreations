@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { MessageCircle, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useSettings } from '@/context/SettingsContext';
+import { db, collection, addDoc } from '@/lib/firebase';
 
 export default function CustomOrderSection() {
   const { t } = useLanguage();
@@ -27,6 +28,20 @@ export default function CustomOrderSection() {
       const msg = `ආයුබෝවන් Ceylon Wood Creations! මම ${name} (${phone}). මට ${wood} වලින් විශේෂ කැටයමක් හදාගන්න අවශ්‍යයි.\n\nවිස්තර:\n${description}`;
       const waUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(msg)}`;
       window.open(waUrl, '_blank', 'noopener,noreferrer');
+
+      // Save to Firebase Cloud Firestore for real-time admin sync
+      try {
+        await addDoc(collection(db, 'inquiries'), {
+          name,
+          phone,
+          wood,
+          description,
+          status: 'NEW',
+          createdAt: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.warn('Could not save inquiry to Firestore:', err);
+      }
 
       // Also save locally for inquiry history if needed
       try {

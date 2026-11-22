@@ -5,6 +5,7 @@ import ProductCard, { ProductData } from './ProductCard';
 import LightboxModal from './LightboxModal';
 import { useLanguage } from '@/context/LanguageContext';
 import { Search } from 'lucide-react';
+import { db, collection, onSnapshot, setDoc, doc } from '@/lib/firebase';
 
 interface ProductCatalogProps {
   initialProducts: ProductData[];
@@ -18,27 +19,57 @@ export default function ProductCatalog({ initialProducts }: ProductCatalogProps)
   const [activeLightboxProduct, setActiveLightboxProduct] = useState<ProductData | null>(null);
 
   useEffect(() => {
+    // 1. Initial fast load from local cache
     try {
       const saved = localStorage.getItem('ceylon_products');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // If stored products contain old category names, reset to new default categories
-          const hasOldCategories = parsed.some(
-            (p: ProductData) =>
-              p.category === 'පිළිම සහ ප්‍රතිමා' ||
-              p.category === 'සිහිවටන (Souvenirs)'
-          );
-          if (hasOldCategories) {
-            localStorage.setItem('ceylon_products', JSON.stringify(initialProducts));
-            setProducts(initialProducts);
-          } else {
-            setProducts(parsed);
-          }
+          setProducts(parsed);
         }
       }
-    } catch (e) {
-      // Ignore
+    } catch (_) {}
+
+    // 2. Real-time Cloud Firestore sync
+    try {
+      const unsub = onSnapshot(
+        collection(db, 'products'),
+        (snapshot) => {
+          if (!snapshot.empty) {
+            const list: ProductData[] = [];
+            snapshot.forEach((d) => {
+              const data = d.data();
+              list.push({
+                id: d.id,
+                title: data.title || '',
+                category: data.category || '',
+                wood: data.wood || '',
+                price: Number(data.price) || 0,
+                image: data.image || '',
+                description: data.description || null,
+              });
+            });
+            setProducts(list);
+            try {
+              localStorage.setItem('ceylon_products', JSON.stringify(list));
+            } catch (_) {}
+          } else {
+            // First time seeding to Firestore
+            initialProducts.forEach((p) => {
+              setDoc(doc(db, 'products', String(p.id)), p).catch((e) =>
+                console.warn('Could not seed product to firestore:', e)
+              );
+            });
+          }
+        },
+        (error) => {
+          console.warn('Firestore products listener error:', error);
+        }
+      );
+
+      return () => unsub();
+    } catch (err) {
+      console.warn('Firebase error in ProductCatalog:', err);
     }
   }, [initialProducts]);
 

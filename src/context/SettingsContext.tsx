@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { db, doc, onSnapshot, setDoc } from '@/lib/firebase';
 
 export interface BusinessSettings {
   whatsappNumber: string; // Digits only formatted for wa.me, e.g. "94700000000"
@@ -27,16 +28,19 @@ export const defaultSettings: BusinessSettings = {
 
 interface SettingsContextType {
   settings: BusinessSettings;
-  updateSettings: (newSettings: Partial<BusinessSettings>) => void;
-  resetSettings: () => void;
+  updateSettings: (newSettings: Partial<BusinessSettings>) => Promise<void>;
+  resetSettings: () => Promise<void>;
+  isLoaded: boolean;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<BusinessSettings>(defaultSettings);
+  const [isLoaded, setIsLoaded] = useState(false);
 
-  const loadSettingsFromStorage = () => {
+  useEffect(() => {
+    // 1. Initial local load
     try {
       const saved = localStorage.getItem('ceylon_settings');
       if (saved) {
@@ -48,57 +52,86 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         }));
       }
     } catch (e) {
-      console.error('Failed to load ceylon_settings from localStorage:', e);
+      console.error('Error loading local settings:', e);
+    }
+
+    // 2. Real-time Firebase Firestore listener
+    try {
+      const unsub = onSnapshot(
+        doc(db, 'settings', 'general'),
+        (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data() as Partial<BusinessSettings>;
+            const merged: BusinessSettings = {
+              whatsappNumber: formatWhatsAppNumber(data.whatsappNumber || defaultSettings.whatsappNumber),
+              displayPhone: data.displayPhone || defaultSettings.displayPhone,
+              addressSi: data.addressSi || defaultSettings.addressSi,
+              addressEn: data.addressEn || defaultSettings.addressEn,
+            };
+            setSettings(merged);
+            try {
+              localStorage.setItem('ceylon_settings', JSON.stringify(merged));
+            } catch (_) {}
+          } else {
+            // First time setup in Firestore
+            setDoc(doc(db, 'settings', 'general'), defaultSettings).catch((err) =>
+              console.warn('Could not initialize firestore settings doc:', err)
+            );
+          }
+          setIsLoaded(true);
+        },
+        (error) => {
+          console.warn('Firestore settings listener error (falling back to local):', error);
+          setIsLoaded(true);
+        }
+      );
+
+      return () => unsub();
+    } catch (err) {
+      console.warn('Firebase init error for settings:', err);
+      setIsLoaded(true);
+    }
+  }, []);
+
+  const updateSettings = async (newSettings: Partial<BusinessSettings>) => {
+    const updated: BusinessSettings = {
+      ...settings,
+      ...newSettings,
+      whatsappNumber: newSettings.whatsappNumber
+        ? formatWhatsAppNumber(newSettings.whatsappNumber)
+        : settings.whatsappNumber,
+    };
+
+    setSettings(updated);
+
+    try {
+      localStorage.setItem('ceylon_settings', JSON.stringify(updated));
+      window.dispatchEvent(new Event('ceylon_settings_updated'));
+    } catch (_) {}
+
+    try {
+      await setDoc(doc(db, 'settings', 'general'), updated, { merge: true });
+    } catch (err) {
+      console.error('Failed to sync settings to Firestore:', err);
     }
   };
 
-  useEffect(() => {
-    loadSettingsFromStorage();
-
-    // Listen to storage events across tabs or components
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'ceylon_settings') {
-        loadSettingsFromStorage();
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
-
-  const updateSettings = (newSettings: Partial<BusinessSettings>) => {
-    setSettings((prev) => {
-      const updated: BusinessSettings = {
-        ...prev,
-        ...newSettings,
-        whatsappNumber: newSettings.whatsappNumber 
-          ? formatWhatsAppNumber(newSettings.whatsappNumber) 
-          : prev.whatsappNumber,
-      };
-
-      try {
-        localStorage.setItem('ceylon_settings', JSON.stringify(updated));
-        // Dispatch custom event for same-window updates
-        window.dispatchEvent(new Event('ceylon_settings_updated'));
-      } catch (e) {
-        console.error('Failed to save ceylon_settings to localStorage:', e);
-      }
-      return updated;
-    });
-  };
-
-  const resetSettings = () => {
+  const resetSettings = async () => {
     setSettings(defaultSettings);
     try {
-      localStorage.removeItem('ceylon_settings');
+      localStorage.setItem('ceylon_settings', JSON.stringify(defaultSettings));
       window.dispatchEvent(new Event('ceylon_settings_updated'));
-    } catch (e) {
-      console.error('Failed to reset ceylon_settings in localStorage:', e);
+    } catch (_) {}
+
+    try {
+      await setDoc(doc(db, 'settings', 'general'), defaultSettings);
+    } catch (err) {
+      console.error('Failed to reset settings in Firestore:', err);
     }
   };
 
   return (
-    <SettingsContext.Provider value={{ settings, updateSettings, resetSettings }}>
+    <SettingsContext.Provider value={{ settings, updateSettings, resetSettings, isLoaded }}>
       {children}
     </SettingsContext.Provider>
   );

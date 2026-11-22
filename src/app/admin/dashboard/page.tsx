@@ -34,9 +34,10 @@ import {
 } from 'lucide-react';
 import { compressImageToTarget, uploadToImgBB, CompressionResult, DEFAULT_IMGBB_API_KEY } from '@/lib/imageUpload';
 import { useSettings, formatWhatsAppNumber, defaultSettings } from '@/context/SettingsContext';
+import { db, collection, doc, addDoc, setDoc, deleteDoc, onSnapshot } from '@/lib/firebase';
 
 interface Product {
-  id: number;
+  id: string | number;
   title: string;
   category: string;
   wood: string;
@@ -46,7 +47,7 @@ interface Product {
 }
 
 interface Inquiry {
-  id: number;
+  id: string | number;
   name: string;
   phone: string;
   wood: string;
@@ -160,41 +161,90 @@ export default function AdminDashboardPage() {
     setImgbbApiKey(savedKey);
     setTempApiKey(savedKey);
 
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    setLoading(true);
+    // Fast initial load from local storage
     try {
       const savedProds = localStorage.getItem('ceylon_products');
       if (savedProds) {
-        const parsed = JSON.parse(savedProds);
-        const hasOldCategories = Array.isArray(parsed) && parsed.some(
-          (p: Product) =>
-            p.category === 'පිළිම සහ ප්‍රතිමා' ||
-            p.category === 'සිහිවටන (Souvenirs)'
-        );
-        if (hasOldCategories) {
-          setProducts(initialDefaultProducts);
-          localStorage.setItem('ceylon_products', JSON.stringify(initialDefaultProducts));
-        } else {
-          setProducts(parsed);
-        }
-      } else {
-        setProducts(initialDefaultProducts);
-        localStorage.setItem('ceylon_products', JSON.stringify(initialDefaultProducts));
+        setProducts(JSON.parse(savedProds));
       }
-
       const savedInqs = localStorage.getItem('ceylon_inquiries');
       if (savedInqs) {
         setInquiries(JSON.parse(savedInqs));
       }
-    } catch (err) {
-      console.error('Error fetching data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    } catch (_) {}
+
+    // Cloud Firestore Products real-time listener
+    const unsubProducts = onSnapshot(
+      collection(db, 'products'),
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const list: Product[] = [];
+          snapshot.forEach((d) => {
+            const data = d.data();
+            list.push({
+              id: d.id,
+              title: data.title || '',
+              category: data.category || '',
+              wood: data.wood || '',
+              price: Number(data.price) || 0,
+              image: data.image || '',
+              description: data.description || null,
+            });
+          });
+          setProducts(list);
+          try {
+            localStorage.setItem('ceylon_products', JSON.stringify(list));
+          } catch (_) {}
+        } else {
+          // Initialize first products in Firestore
+          initialDefaultProducts.forEach((p) => {
+            setDoc(doc(db, 'products', String(p.id)), p).catch((e) =>
+              console.warn('Could not seed product to firestore:', e)
+            );
+          });
+          setProducts(initialDefaultProducts);
+        }
+        setLoading(false);
+      },
+      (error) => {
+        console.warn('Firestore products listener error:', error);
+        setLoading(false);
+      }
+    );
+
+    // Cloud Firestore Inquiries real-time listener
+    const unsubInquiries = onSnapshot(
+      collection(db, 'inquiries'),
+      (snapshot) => {
+        const list: Inquiry[] = [];
+        snapshot.forEach((d) => {
+          const data = d.data();
+          list.push({
+            id: d.id,
+            name: data.name || '',
+            phone: data.phone || '',
+            wood: data.wood || '',
+            description: data.description || '',
+            status: data.status || 'NEW',
+            createdAt: data.createdAt || new Date().toISOString(),
+          });
+        });
+        list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setInquiries(list);
+        try {
+          localStorage.setItem('ceylon_inquiries', JSON.stringify(list));
+        } catch (_) {}
+      },
+      (error) => {
+        console.warn('Firestore inquiries listener error:', error);
+      }
+    );
+
+    return () => {
+      unsubProducts();
+      unsubInquiries();
+    };
+  }, []);
 
   const handleSaveApiKey = (keyToSave: string) => {
     const cleanKey = keyToSave.trim();
@@ -310,20 +360,26 @@ export default function AdminDashboardPage() {
         throw new Error('කරුණාකර නිර්මාණයේ පින්තූරය upload කරන්න හෝ Photo URL එකක් ඇතුළත් කරන්න.');
       }
 
-      const newProduct: Product = {
-        id: Date.now(),
+      const productPayload = {
         title: title.trim(),
         category,
         wood: wood.trim(),
         price: parseFloat(price) || 0,
         image: image.trim(),
         description: description.trim(),
+        createdAt: new Date().toISOString(),
       };
 
-      const updated = [newProduct, ...products];
-      setProducts(updated);
-      localStorage.setItem('ceylon_products', JSON.stringify(updated));
-      setFeedback({ type: 'success', text: 'නව නිර්මාණය සාර්ථකව Catalog එකට එක් කෙරිණි!' });
+      // Add directly to Firebase Cloud Firestore
+      const docRef = await addDoc(collection(db, 'products'), productPayload);
+
+      // Optimistic local state update
+      const newProduct: Product = {
+        id: docRef.id,
+        ...productPayload,
+      };
+      setProducts((prev) => [newProduct, ...prev.filter(p => p.id !== docRef.id)]);
+      setFeedback({ type: 'success', text: 'නව නිර්මාණය සාර්ථකව Cloud Database (Firebase) වෙත එක් කෙරිණි!' });
 
       // Reset form
       setTitle('');
@@ -341,11 +397,16 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const handleDeleteProduct = async (id: number) => {
+  const handleDeleteProduct = async (id: string | number) => {
     if (!confirm('මෙම නිර්මාණය ඉවත් කිරීමට අවශ්‍ය බව විශ්වාසද?')) return;
-    const updated = products.filter((p) => p.id !== id);
-    setProducts(updated);
-    localStorage.setItem('ceylon_products', JSON.stringify(updated));
+    try {
+      await deleteDoc(doc(db, 'products', String(id)));
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+      setFeedback({ type: 'success', text: 'නිර්මාණය Cloud Database එකෙන් සාර්ථකව ඉවත් කරන ලදී.' });
+    } catch (err) {
+      console.error('Error deleting from firestore:', err);
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+    }
   };
 
   const handleStartEdit = (p: Product) => {
@@ -408,8 +469,7 @@ export default function AdminDashboardPage() {
         throw new Error('කරුණාකර නිර්මාණයේ පින්තූරයක් ඇතුළත් කරන්න.');
       }
 
-      const updatedProduct: Product = {
-        ...editingProduct,
+      const updatedFields = {
         title: editTitle.trim(),
         category: editCategory,
         wood: editWood.trim(),
@@ -418,13 +478,23 @@ export default function AdminDashboardPage() {
         description: editDescription.trim(),
       };
 
+      // Save directly to Firebase Cloud Firestore
+      await setDoc(doc(db, 'products', String(editingProduct.id)), updatedFields, { merge: true });
+
+      const updatedProduct: Product = {
+        ...editingProduct,
+        ...updatedFields,
+      };
+
       const updatedList = products.map((p) => (p.id === editingProduct.id ? updatedProduct : p));
       setProducts(updatedList);
-      localStorage.setItem('ceylon_products', JSON.stringify(updatedList));
+      try {
+        localStorage.setItem('ceylon_products', JSON.stringify(updatedList));
+      } catch (_) {}
 
       setFeedback({
         type: 'success',
-        text: `"${updatedProduct.title}" නිර්මාණය සාර්ථකව යාවත්කාලීන (Update) කරන ලදී!`,
+        text: `"${updatedProduct.title}" නිර්මාණය සාර්ථකව Cloud Database (Firebase) තුළ යාවත්කාලීන කරන ලදී!`,
       });
       handleCloseEdit();
     } catch (err: unknown) {
@@ -599,7 +669,7 @@ export default function AdminDashboardPage() {
           </div>
 
           <div className="text-xs text-gray-500 font-medium flex items-center space-x-2">
-            <span>Storage: <span className="text-emerald-600 font-semibold">● Local Storage Active</span></span>
+            <span>Database: <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 font-semibold">🔥 Cloud Firestore Live</span></span>
             {imgbbApiKey && (
               <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 font-semibold">
                 ● ImgBB Ready
