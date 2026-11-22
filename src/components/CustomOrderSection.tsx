@@ -15,6 +15,7 @@ export default function CustomOrderSection() {
   const [phone, setPhone] = useState('');
   const [wood, setWood] = useState('තේක්ක දැව (Teak Wood)');
   const [description, setDescription] = useState('');
+  const [honeypot, setHoneypot] = useState(''); // Anti-bot honeypot field
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -22,6 +23,19 @@ export default function CustomOrderSection() {
     e.preventDefault();
     setIsSubmitting(true);
     setStatusMessage(null);
+
+    // Honeypot bot protection: if filled, quietly drop spam without writing to database
+    if (honeypot && honeypot.trim() !== '') {
+      setStatusMessage({
+        type: 'success',
+        text: 'ඔබගේ පණිවිඩය සාර්ථකව යොමු විය! අප ඔබ හා WhatsApp ඔස්සේ සම්බන්ධ වන්නෙමු.',
+      });
+      setIsSubmitting(false);
+      setName('');
+      setPhone('');
+      setDescription('');
+      return;
+    }
 
     try {
       // Open WhatsApp directly with inquiry details
@@ -114,6 +128,20 @@ export default function CustomOrderSection() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          
+          {/* Honeypot field - completely invisible to humans, traps automated spam bots */}
+          <div className="hidden" aria-hidden="true" style={{ display: 'none', position: 'absolute', left: '-9999px' }}>
+            <label htmlFor="hp_company_field">Do not fill this field if human</label>
+            <input
+              id="hp_company_field"
+              type="text"
+              name="hp_company_field"
+              value={honeypot}
+              onChange={(e) => setHoneypot(e.target.value)}
+              tabIndex={-1}
+              autoComplete="off"
+            />
+          </div>
           <div>
             <label className="block text-xs font-semibold uppercase text-gray-600 mb-1">
               {t.custNamePh}

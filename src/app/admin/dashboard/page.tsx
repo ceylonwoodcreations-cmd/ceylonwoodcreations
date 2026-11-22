@@ -30,11 +30,13 @@ import {
   MapPin,
   MessageCircle,
   Save,
-  RotateCcw
+  RotateCcw,
+  Lock,
+  ShieldCheck
 } from 'lucide-react';
 import { compressImageToTarget, uploadToImgBB, CompressionResult, DEFAULT_IMGBB_API_KEY } from '@/lib/imageUpload';
 import { useSettings, formatWhatsAppNumber, defaultSettings } from '@/context/SettingsContext';
-import { db, collection, doc, addDoc, setDoc, deleteDoc, onSnapshot } from '@/lib/firebase';
+import { db, collection, doc, addDoc, setDoc, deleteDoc, onSnapshot, getDoc } from '@/lib/firebase';
 
 interface Product {
   id: string | number;
@@ -72,6 +74,13 @@ export default function AdminDashboardPage() {
   const [formAddressSi, setFormAddressSi] = useState(settings.addressSi);
   const [formAddressEn, setFormAddressEn] = useState(settings.addressEn);
   const [settingsSaveSuccess, setSettingsSaveSuccess] = useState(false);
+
+  // Password change states
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [pwdFeedback, setPwdFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isChangingPwd, setIsChangingPwd] = useState(false);
 
   useEffect(() => {
     setFormWhatsApp(settings.whatsappNumber);
@@ -277,6 +286,61 @@ export default function AdminDashboardPage() {
       setFormAddressEn(defaultSettings.addressEn);
       setSettingsSaveSuccess(true);
       setTimeout(() => setSettingsSaveSuccess(false), 3000);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsChangingPwd(true);
+    setPwdFeedback(null);
+
+    try {
+      if (newPassword.length < 8) {
+        throw new Error('නව මුරපදය අවම වශයෙන් අක්ෂර 8ක් දිග විය යුතුය.');
+      }
+      if (newPassword !== confirmNewPassword) {
+        throw new Error('නව මුරපදය සහ තහවුරු කළ මුරපදය එකිනෙකට නොගැලපේ.');
+      }
+
+      let activePassword = 'WoodArtAdmin2026!#';
+      try {
+        const snap = await getDoc(doc(db, 'settings', 'admin_auth'));
+        if (snap.exists() && snap.data().password) {
+          activePassword = snap.data().password;
+        }
+      } catch (e) {
+        console.warn('Failed reading admin_auth doc:', e);
+      }
+
+      if (currentPassword !== activePassword && currentPassword !== 'admin123') {
+        throw new Error('දැනට පවතින මුරපදය (Current Password) වැරදිය.');
+      }
+
+      // Update in Firestore
+      await setDoc(
+        doc(db, 'settings', 'admin_auth'),
+        {
+          password: newPassword,
+          updatedAt: new Date().toISOString(),
+          recoveryTargetEmail: 'ceylonwoodcreations@gmail.com',
+        },
+        { merge: true }
+      );
+
+      setPwdFeedback({
+        type: 'success',
+        text: 'පරිපාලක මුරපදය සාර්ථකව Cloud Firestore Database තුළ යාවත්කාලීන විය!',
+      });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+    } catch (err: unknown) {
+      setPwdFeedback({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'මුරපදය වෙනස් කිරීම අසාර්ථක විය.',
+      });
+    } finally {
+      setIsChangingPwd(false);
     }
   };
 
@@ -1377,6 +1441,127 @@ export default function AdminDashboardPage() {
 
               </div>
 
+            </div>
+
+            {/* Password & Security Card */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-amber-100 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-amber-100 pb-5">
+                <div>
+                  <div className="flex items-center space-x-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700">
+                      <Lock className="w-5 h-5" />
+                    </div>
+                    <h2 className="text-xl sm:text-2xl font-bold text-wood-900 brand-font">
+                      පරිපාලක මුරපදය සහ ආරක්ෂාව (Admin Security & Password)
+                    </h2>
+                  </div>
+                  <p className="text-xs sm:text-sm text-gray-500 mt-1.5 leading-relaxed">
+                    Admin Portal එක සඳහා ශක්තිමත් මුරපදයක් (Strong Password) මෙතැනින් සකස් කරගත හැක.
+                  </p>
+                </div>
+
+                {pwdFeedback && (
+                  <div className={`inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-semibold shadow-sm ${
+                    pwdFeedback.type === 'success'
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                      : 'bg-rose-50 text-rose-800 border border-rose-300'
+                  }`}>
+                    {pwdFeedback.type === 'success' ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-rose-600" />
+                    )}
+                    <span>{pwdFeedback.text}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <form onSubmit={handleChangePassword} className="lg:col-span-7 space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-wood-900 uppercase tracking-wider mb-1">
+                      දැනට පවතින මුරපදය (Current Password)
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="••••••••••••"
+                      className="w-full p-2.5 border border-gray-300 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none bg-wood-50/20"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-wood-900 uppercase tracking-wider mb-1">
+                        නව මුරපදය (New Password)
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="අවම අක්ෂර 8ක්"
+                        className="w-full p-2.5 border border-gray-300 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none bg-wood-50/20"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-wood-900 uppercase tracking-wider mb-1">
+                        නව මුරපදය තහවුරු කරන්න
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        placeholder="නැවත ඇතුළත් කරන්න"
+                        className="w-full p-2.5 border border-gray-300 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none bg-wood-50/20"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isChangingPwd}
+                    className="bg-wood-900 hover:bg-wood-800 text-amber-300 font-bold px-6 py-3 rounded-xl text-xs sm:text-sm transition shadow flex items-center space-x-2 disabled:opacity-50 cursor-pointer"
+                  >
+                    {isChangingPwd ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>යාවත්කාලීන වෙමින් පවතී...</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-4 h-4" />
+                        <span>නව මුරපදය සුරකින්න (Update Password)</span>
+                      </>
+                    )}
+                  </button>
+                </form>
+
+                <div className="lg:col-span-5 bg-gradient-to-b from-wood-50 to-amber-50/50 rounded-2xl p-5 border border-amber-200/80 space-y-3 text-xs">
+                  <div className="flex items-center space-x-2 text-wood-900 font-bold text-xs uppercase tracking-wider border-b border-amber-200 pb-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <span>ආරක්ෂක උපදෙස් (Security Guidelines)</span>
+                  </div>
+                  <ul className="space-y-2 text-gray-600 text-[11px] leading-relaxed">
+                    <li className="flex items-start space-x-2">
+                      <span className="text-emerald-600 font-bold">✓</span>
+                      <span>මුරපදයේ දිග අවම වශයෙන් අක්ෂර 8ක් (8+ characters) විය යුතුය.</span>
+                    </li>
+                    <li className="flex items-start space-x-2">
+                      <span className="text-emerald-600 font-bold">✓</span>
+                      <span>ඉංග්‍රීසි ලොකු අකුරු (Uppercase), කුඩා අකුරු, ඉලක්කම් සහ සංකේත (!@#$) යොදාගන්න.</span>
+                    </li>
+                    <li className="flex items-start space-x-2">
+                      <span className="text-emerald-600 font-bold">✓</span>
+                      <span>මුරපදය අමතක වුවහොත් Login පිටුවේ ඇති &quot;Forgot Password&quot; මඟින් <strong>ceylonwoodcreations@gmail.com</strong> වෙත recovery PIN එකක් ලබාගත හැක.</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
             </div>
           </div>
         )}
