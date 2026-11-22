@@ -12,6 +12,7 @@ import {
   Loader2, 
   AlertCircle, 
   ShieldAlert, 
+  ShieldCheck,
   KeyRound, 
   CheckCircle2, 
   Mail, 
@@ -23,6 +24,9 @@ import { db, doc, getDoc, setDoc } from '@/lib/firebase';
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 10;
 const RECOVERY_EMAIL = 'ceylonwoodcreations@gmail.com';
+const MASKED_EMAIL_HINT = 'cey**********@gmail.com';
+const MAX_PIN_REQUESTS = 3;
+const PIN_COOLDOWN_SECONDS = 300; // 5 minutes
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -39,21 +43,27 @@ export default function AdminLoginPage() {
   // Forgot Password Modal States
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [resetStep, setResetStep] = useState<'request' | 'verify'>('request');
+  const [challengeEmailInput, setChallengeEmailInput] = useState('');
   const [recoveryPinInput, setRecoveryPinInput] = useState('');
   const [newPasswordInput, setNewPasswordInput] = useState('');
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
   const [resetFeedback, setResetFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isResetting, setIsResetting] = useState(false);
 
-  // Check Lockout on mount and set timer
+  // Anti-Spam Cooldown & Request Limit States
+  const [pinCooldownRemaining, setPinCooldownRemaining] = useState(0);
+  const [pinRequestsCount, setPinRequestsCount] = useState(0);
+
+  // Check Lockout and Cooldown on mount and update timers
   useEffect(() => {
-    checkLockoutStatus();
-    const interval = setInterval(checkLockoutStatus, 1000);
+    checkTimers();
+    const interval = setInterval(checkTimers, 1000);
     return () => clearInterval(interval);
   }, []);
 
-  const checkLockoutStatus = () => {
+  const checkTimers = () => {
     try {
+      // 1. Check Login Lockout
       const lockoutUntil = localStorage.getItem('ceylon_lockout_until');
       if (lockoutUntil) {
         const remaining = Math.ceil((parseInt(lockoutUntil, 10) - Date.now()) / 1000);
@@ -61,7 +71,6 @@ export default function AdminLoginPage() {
           setIsLocked(true);
           setRemainingSeconds(remaining);
         } else {
-          // Lockout expired
           setIsLocked(false);
           setRemainingSeconds(0);
           localStorage.removeItem('ceylon_lockout_until');
@@ -72,6 +81,24 @@ export default function AdminLoginPage() {
         const savedAttempts = parseInt(localStorage.getItem('ceylon_login_attempts') || '0', 10);
         setAttemptsCount(savedAttempts);
       }
+
+      // 2. Check PIN Cooldown
+      const cooldownUntil = localStorage.getItem('ceylon_pin_cooldown');
+      if (cooldownUntil) {
+        const rem = Math.ceil((parseInt(cooldownUntil, 10) - Date.now()) / 1000);
+        if (rem > 0) {
+          setPinCooldownRemaining(rem);
+        } else {
+          setPinCooldownRemaining(0);
+          localStorage.removeItem('ceylon_pin_cooldown');
+        }
+      } else {
+        setPinCooldownRemaining(0);
+      }
+
+      // 3. Check PIN Request Count
+      const count = parseInt(localStorage.getItem('ceylon_pin_requests_count') || '0', 10);
+      setPinRequestsCount(count);
     } catch (_) {}
   };
 
@@ -134,13 +161,46 @@ export default function AdminLoginPage() {
     }
   };
 
-  // Generate & send Password Recovery PIN to ceylonwoodcreations@gmail.com
-  const handleSendRecoveryPin = async () => {
-    setIsResetting(true);
+  // Securely verify admin identity, rate limit, and send PIN
+  const handleSendRecoveryPin = async (e: React.FormEvent) => {
+    e.preventDefault();
     setResetFeedback(null);
 
+    // 1. Check max daily PIN requests
+    const currentCount = parseInt(localStorage.getItem('ceylon_pin_requests_count') || '0', 10);
+    if (currentCount >= MAX_PIN_REQUESTS) {
+      setResetFeedback({
+        type: 'error',
+        text: `🚨 දිනකට ඉල්ලිය හැකි උපරිම PIN වාර ගණන (${MAX_PIN_REQUESTS}/${MAX_PIN_REQUESTS}) ඉක්මවා ඇත. කරුණාකර පසුව නැවත උත්සාහ කරන්න.`,
+      });
+      return;
+    }
+
+    // 2. Check Cooldown timer
+    const cooldownUntil = localStorage.getItem('ceylon_pin_cooldown');
+    if (cooldownUntil && parseInt(cooldownUntil, 10) > Date.now()) {
+      const rem = Math.ceil((parseInt(cooldownUntil, 10) - Date.now()) / 1000);
+      setResetFeedback({
+        type: 'error',
+        text: `⏱️ Spam වැළැක්වීමේ Cooldown එක සක්‍රියයි. කරුණාකර තවත් තත්පර ${rem}ක් රැඳී සිටින්න.`,
+      });
+      return;
+    }
+
+    // 3. Email Verification Challenge (Strict Identity Check)
+    const normalizedInput = challengeEmailInput.trim().toLowerCase();
+    if (normalizedInput !== RECOVERY_EMAIL.toLowerCase()) {
+      setResetFeedback({
+        type: 'error',
+        text: '❌ ඔබ ඇතුළත් කළ ඊමේල් ලිපිනය ලියාපදිංචි පරිපාලක ගිණුමට නොගැලපේ (Access Denied).',
+      });
+      return;
+    }
+
+    setIsResetting(true);
+
     try {
-      // Generate a 6-digit secure PIN
+      // 4. Generate 6-digit secure PIN
       const pin = Math.floor(100000 + Math.random() * 900000).toString();
       const expires = Date.now() + 15 * 60 * 1000; // 15 minutes
 
@@ -156,17 +216,24 @@ export default function AdminLoginPage() {
         { merge: true }
       );
 
-      // Open email client with pre-addressed subject for the owner's convenience
+      // Open email client with pre-addressed subject for the owner
       const emailSubject = encodeURIComponent(`Ceylon Wood Creations - Admin Security PIN: ${pin}`);
       const emailBody = encodeURIComponent(
         `Ceylon Wood Creations Admin Portal සඳහා මුරපදය යළි සැකසීමේ ආරක්ෂක PIN අංකය:\n\n${pin}\n\nමෙම කේතය විනාඩි 15ක් පමණක් වලංගු වේ.`
       );
       window.open(`mailto:${RECOVERY_EMAIL}?subject=${emailSubject}&body=${emailBody}`, '_blank');
 
+      // 5. Activate 5-minute cooldown and increment count
+      const nextCount = currentCount + 1;
+      localStorage.setItem('ceylon_pin_cooldown', (Date.now() + PIN_COOLDOWN_SECONDS * 1000).toString());
+      localStorage.setItem('ceylon_pin_requests_count', nextCount.toString());
+      setPinCooldownRemaining(PIN_COOLDOWN_SECONDS);
+      setPinRequestsCount(nextCount);
+
       setResetStep('verify');
       setResetFeedback({
         type: 'success',
-        text: `ආරක්ෂක PIN අංකය ${RECOVERY_EMAIL} වෙත යොමු කරන ලදී. කරුණාකර විද්‍යුත් තැපෑල පරීක්ෂා කර PIN අංකය පහතින් ඇතුළත් කරන්න.`,
+        text: `ආරක්ෂක PIN අංකය ලියාපදිංචි ${MASKED_EMAIL_HINT} වෙත යොමු කරන ලදී. කරුණාකර විද්‍යුත් තැපෑල පරීක්ෂා කර PIN අංකය පහතින් ඇතුළත් කරන්න.`,
       });
     } catch (err) {
       setResetFeedback({
@@ -231,6 +298,7 @@ export default function AdminLoginPage() {
       setTimeout(() => {
         setShowForgotModal(false);
         setResetStep('request');
+        setChallengeEmailInput('');
         setRecoveryPinInput('');
         setNewPasswordInput('');
         setConfirmPasswordInput('');
@@ -366,6 +434,7 @@ export default function AdminLoginPage() {
                   setShowForgotModal(true);
                   setResetStep('request');
                   setResetFeedback(null);
+                  setChallengeEmailInput('');
                 }}
                 className="text-[11px] text-amber-400 hover:text-amber-300 underline font-medium cursor-pointer"
               >
@@ -415,7 +484,7 @@ export default function AdminLoginPage() {
 
       </div>
 
-      {/* Forgot Password Modal */}
+      {/* Forgot Password Modal with Anti-Spam & Identity Challenge */}
       {showForgotModal && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-wood-900 border border-amber-500/40 rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl relative text-amber-100 space-y-5">
@@ -434,7 +503,7 @@ export default function AdminLoginPage() {
               </div>
               <div>
                 <h3 className="font-bold text-base text-amber-300">මුරපදය නැවත සැකසීම (Password Recovery)</h3>
-                <p className="text-[11px] text-gray-400">Owner Verification Portal</p>
+                <p className="text-[11px] text-gray-400">Owner Identity Verification</p>
               </div>
             </div>
 
@@ -455,39 +524,70 @@ export default function AdminLoginPage() {
             )}
 
             {resetStep === 'request' ? (
-              <div className="space-y-4">
-                <div className="bg-wood-950/70 p-4 rounded-2xl border border-wood-800 space-y-2 text-xs">
+              <form onSubmit={handleSendRecoveryPin} className="space-y-4 text-xs">
+                {/* Masked Email Hint Box */}
+                <div className="bg-wood-950/70 p-4 rounded-2xl border border-wood-800 space-y-2">
                   <div className="flex items-center space-x-2 text-amber-400 font-semibold">
                     <Mail className="w-4 h-4" />
-                    <span>ලියාපදිංචි විද්‍යුත් තැපෑල (Registered Email):</span>
+                    <span>ලියාපදිංචි ඊමේල් ඉඟිය (Email Hint):</span>
                   </div>
-                  <p className="font-mono text-emerald-400 text-sm font-bold pl-6">
-                    {RECOVERY_EMAIL}
+                  <p className="font-mono text-emerald-400 text-sm font-bold pl-6 tracking-wider">
+                    {MASKED_EMAIL_HINT}
                   </p>
-                  <p className="text-gray-400 text-[11px] leading-relaxed pt-1">
-                    ආරක්ෂක හේතූන් මත, මුරපදය වෙනස් කිරීමේ ආරක්ෂක PIN අංකය ඉහත Gmail ලිපිනය වෙත පමණක් නිකුත් කෙරේ.
+                  <p className="text-gray-400 text-[11px] leading-relaxed pt-0.5">
+                    අනවසර පුද්ගලයින්ට PIN ලබාගැනීම වැළැක්වීම සඳහා, කරුණාකර ඔබගේ සම්පූර්ණ ඊමේල් ලිපිනය පහතින් නිවැරදිව ඇතුළත් කරන්න.
                   </p>
                 </div>
 
+                {/* Identity Challenge Input */}
+                <div>
+                  <label className="block text-amber-200/80 font-medium mb-1.5 text-xs">
+                    ලියාපදිංචි ඊමේල් ලිපිනය තහවුරු කරන්න (Confirm Email):
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={challengeEmailInput}
+                    onChange={(e) => setChallengeEmailInput(e.target.value)}
+                    placeholder="උදා: your-email@gmail.com"
+                    className="w-full bg-wood-950 border border-wood-700 text-amber-50 p-3 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+
+                {/* Cooldown notification if active */}
+                {pinCooldownRemaining > 0 && (
+                  <div className="bg-amber-950/60 border border-amber-800 text-amber-300 p-2.5 rounded-xl text-[11px] flex items-center space-x-2">
+                    <Clock className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                    <span>Spam Protection Active: නැවත PIN ඉල්ලීමට තව <strong>{formatCountdown(pinCooldownRemaining)}</strong> ක් රැඳී සිටින්න.</span>
+                  </div>
+                )}
+
                 <button
-                  type="button"
-                  onClick={handleSendRecoveryPin}
-                  disabled={isResetting}
+                  type="submit"
+                  disabled={isResetting || pinCooldownRemaining > 0 || pinRequestsCount >= MAX_PIN_REQUESTS}
                   className="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-3 rounded-xl transition text-xs sm:text-sm flex items-center justify-center space-x-2 disabled:opacity-50 cursor-pointer shadow-lg"
                 >
                   {isResetting ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>PIN අංකය යොමු වෙමින් පවතී...</span>
+                      <span>තහවුරු කරමින්...</span>
                     </>
+                  ) : pinCooldownRemaining > 0 ? (
+                    <span>Cooldown: {formatCountdown(pinCooldownRemaining)}</span>
+                  ) : pinRequestsCount >= MAX_PIN_REQUESTS ? (
+                    <span>Limit Reached (Max {MAX_PIN_REQUESTS})</span>
                   ) : (
                     <>
-                      <Mail className="w-4 h-4" />
-                      <span>ආරක්ෂක PIN එක Gmail වෙත එවන්න</span>
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>තහවුරු කර ආරක්ෂක PIN එක එවන්න</span>
                     </>
                   )}
                 </button>
-              </div>
+
+                <div className="text-center text-[10px] text-gray-500">
+                  ඉතිරිව ඇති PIN ඉල්ලීම් වාර ගණන: {Math.max(0, MAX_PIN_REQUESTS - pinRequestsCount)} / {MAX_PIN_REQUESTS}
+                </div>
+              </form>
             ) : (
               <form onSubmit={handleConfirmPasswordReset} className="space-y-4 text-xs">
                 <div>
