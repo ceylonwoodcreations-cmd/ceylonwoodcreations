@@ -216,12 +216,13 @@ export default function AdminLoginPage() {
         { merge: true }
       );
 
-      // Open email client with pre-addressed subject for the owner
+      // Open Web Gmail directly in a new browser tab (Never launches Windows Outlook desktop app!)
       const emailSubject = encodeURIComponent(`Ceylon Wood Creations - Admin Security PIN: ${pin}`);
       const emailBody = encodeURIComponent(
         `Ceylon Wood Creations Admin Portal සඳහා මුරපදය යළි සැකසීමේ ආරක්ෂක PIN අංකය:\n\n${pin}\n\nමෙම කේතය විනාඩි 15ක් පමණක් වලංගු වේ.`
       );
-      window.open(`mailto:${RECOVERY_EMAIL}?subject=${emailSubject}&body=${emailBody}`, '_blank');
+      const webGmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(RECOVERY_EMAIL)}&su=${emailSubject}&body=${emailBody}`;
+      window.open(webGmailUrl, '_blank');
 
       // 5. Activate 5-minute cooldown and increment count
       const nextCount = currentCount + 1;
@@ -587,9 +588,48 @@ export default function AdminLoginPage() {
                 <div className="text-center text-[10px] text-gray-500">
                   ඉතිරිව ඇති PIN ඉල්ලීම් වාර ගණන: {Math.max(0, MAX_PIN_REQUESTS - pinRequestsCount)} / {MAX_PIN_REQUESTS}
                 </div>
+
+                <div className="pt-2 text-center border-t border-wood-800/80">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResetStep('verify');
+                      setResetFeedback(null);
+                    }}
+                    className="text-amber-400 hover:text-amber-300 text-[11px] underline cursor-pointer transition font-medium"
+                  >
+                    දැනටමත් PIN අංකය තිබේද? PIN එක ඇතුළත් කිරීමට මෙතැන ක්ලික් කරන්න →
+                  </button>
+                </div>
               </form>
             ) : (
               <form onSubmit={handleConfirmPasswordReset} className="space-y-4 text-xs">
+                {/* Helpful direct Web Gmail / WhatsApp bar */}
+                <div className="bg-wood-950/80 p-3 rounded-xl border border-wood-800 text-[11px] space-y-2">
+                  <p className="text-gray-300">
+                    ඔබගේ Gmail වෙත ලැබුණු PIN අංකය පරීක්ෂා කර ගැනීමට:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <a
+                      href="https://mail.google.com/mail/u/0/#inbox"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-red-600/20 text-red-300 hover:bg-red-600/30 border border-red-500/30 font-medium transition"
+                    >
+                      <Mail className="w-3.5 h-3.5" />
+                      <span>Web Gmail විවෘත කරන්න</span>
+                    </a>
+                    <a
+                      href="https://api.whatsapp.com/send?phone=94779878424"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 border border-emerald-500/30 font-medium transition"
+                    >
+                      <span>💬 WhatsApp Support</span>
+                    </a>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-amber-200/80 font-medium mb-1">
                     Gmail වෙත ලැබුණු 6-Digit ආරක්ෂක PIN අංකය
