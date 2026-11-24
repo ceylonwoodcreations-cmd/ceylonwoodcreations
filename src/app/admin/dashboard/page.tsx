@@ -2238,11 +2238,78 @@ export default function AdminDashboardPage() {
                     );
                   })()}
 
-                  {/* Subtle Center Crosshair */}
-                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 opacity-30 pointer-events-none">
-                    <div className="absolute left-1/2 top-0 bottom-0 w-px bg-amber-400 -translate-x-1/2" />
-                    <div className="absolute top-1/2 left-0 right-0 h-px bg-amber-400 -translate-y-1/2" />
+                  {/* High-Contrast Target Alignment Rings and Center Crosshair */}
+                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                    {/* Concentric Guide Rings */}
+                    <div className="w-[200px] h-[200px] rounded-full border border-dashed border-amber-400/40 pointer-events-none" />
+                    <div className="absolute w-[120px] h-[120px] rounded-full border border-dashed border-amber-400/30 pointer-events-none" />
+                    
+                    {/* Full crosshair lines across the circle */}
+                    <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-px bg-amber-400/40 pointer-events-none" />
+                    <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-px bg-amber-400/40 pointer-events-none" />
+
+                    {/* Central Bullseye Target */}
+                    <div className="absolute w-5 h-5 rounded-full border-2 border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)] pointer-events-none" />
                   </div>
+                </div>
+              </div>
+
+              {/* Position Nudge Controls (Up, Down, Left, Right) */}
+              <div className="bg-wood-950/70 p-3 rounded-2xl border border-wood-800 space-y-2">
+                <div className="flex items-center justify-between text-xs text-amber-200/90 font-medium">
+                  <span className="font-semibold text-amber-300">කේන්ද්‍රගත කිරීම (Balance & Nudge):</span>
+                  <button
+                    type="button"
+                    onClick={() => setLogoOffset({ x: 0, y: 0 })}
+                    className="px-2 py-0.5 rounded-lg bg-wood-800 hover:bg-wood-700 text-amber-300 text-[10px] transition cursor-pointer border border-wood-700 font-semibold"
+                  >
+                    🎯 Reset Center
+                  </button>
+                </div>
+                
+                <div className="flex items-center justify-center space-x-3 py-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setLogoOffset((prev) => ({ ...prev, x: prev.x - 5 }))}
+                    className="w-10 h-8 rounded-lg bg-wood-800 hover:bg-wood-700 text-amber-300 font-bold text-xs flex items-center justify-center transition border border-wood-700 active:scale-95 cursor-pointer shadow-sm"
+                    title="Move Left 5px"
+                  >
+                    ◀
+                  </button>
+
+                  <div className="flex flex-col space-y-1">
+                    <button
+                      type="button"
+                      onClick={() => setLogoOffset((prev) => ({ ...prev, y: prev.y - 5 }))}
+                      className="w-10 h-8 rounded-lg bg-wood-800 hover:bg-wood-700 text-amber-300 font-bold text-xs flex items-center justify-center transition border border-wood-700 active:scale-95 cursor-pointer shadow-sm"
+                      title="Move Up 5px"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLogoOffset((prev) => ({ ...prev, y: prev.y + 5 }))}
+                      className="w-10 h-8 rounded-lg bg-wood-800 hover:bg-wood-700 text-amber-300 font-bold text-xs flex items-center justify-center transition border border-wood-700 active:scale-95 cursor-pointer shadow-sm"
+                      title="Move Down 5px"
+                    >
+                      ▼
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setLogoOffset((prev) => ({ ...prev, x: prev.x + 5 }))}
+                    className="w-10 h-8 rounded-lg bg-wood-800 hover:bg-wood-700 text-amber-300 font-bold text-xs flex items-center justify-center transition border border-wood-700 active:scale-95 cursor-pointer shadow-sm"
+                    title="Move Right 5px"
+                  >
+                    ▶
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between text-[10px] text-gray-400 px-1 font-mono">
+                  <span>X Offset: <strong className="text-amber-300">{logoOffset.x}px</strong></span>
+                  <span>Y Offset: <strong className="text-amber-300">{logoOffset.y}px</strong></span>
+                  <span className="text-emerald-400">ඊතල ඔබා Balance කරන්න</span>
                 </div>
               </div>
 
