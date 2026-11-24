@@ -32,7 +32,10 @@ import {
   Save,
   RotateCcw,
   Lock,
-  ShieldCheck
+  ShieldCheck,
+  ZoomIn,
+  ZoomOut,
+  Crop
 } from 'lucide-react';
 import { compressImageToTarget, uploadToImgBB, CompressionResult, DEFAULT_IMGBB_API_KEY } from '@/lib/imageUpload';
 import { useSettings, formatWhatsAppNumber, defaultSettings } from '@/context/SettingsContext';
@@ -120,6 +123,17 @@ export default function AdminDashboardPage() {
   const [isResettingLogo, setIsResettingLogo] = useState(false);
   const [isLogoDragging, setIsLogoDragging] = useState(false);
   const logoFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Logo Crop Modal States
+  const [showLogoCropModal, setShowLogoCropModal] = useState(false);
+  const [rawLogoDataUrl, setRawLogoDataUrl] = useState<string | null>(null);
+  const [logoZoom, setLogoZoom] = useState(1);
+  const [logoOffset, setLogoOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isLogoPanning, setIsLogoPanning] = useState(false);
+  const [panStart, setPanStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [naturalImgSize, setNaturalImgSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+  const [isCroppingAndUploading, setIsCroppingAndUploading] = useState(false);
+  const [cropStatusStep, setCropStatusStep] = useState<string>('');
 
   // Edit Modal States
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -298,40 +312,139 @@ export default function AdminDashboardPage() {
     }
   };
 
-  // Process, auto-compress, and upload Logo
-  const handleLogoProcessAndUpload = async (file: File) => {
+  // Step 1: When user selects/drops a logo file, open Crop & Zoom Modal
+  const handleSelectLogoFile = (file: File) => {
     if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setLogoUploadError('කරුණාකර වලංගු පින්තූරයක් (JPG, PNG, WEBP) තෝරන්න.');
+      return;
+    }
     setLogoUploadError(null);
     setLogoSuccessMsg(null);
-    setLogoUploadStatus('compressing');
+
+    const reader = new FileReader();
+    reader.onerror = () => setLogoUploadError('පින්තූරය කියවීමට නොහැකි විය.');
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      if (!result) return;
+
+      const img = new window.Image();
+      img.onerror = () => setLogoUploadError('පින්තූරය load කිරීමට නොහැකි විය.');
+      img.onload = () => {
+        setNaturalImgSize({ width: img.naturalWidth, height: img.naturalHeight });
+        setRawLogoDataUrl(result);
+        setLogoZoom(1);
+        setLogoOffset({ x: 0, y: 0 });
+        setShowLogoCropModal(true);
+      };
+      img.src = result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Step 2: Crop from Canvas, auto-compress to ~100KB, and upload to ImgBB
+  const handleConfirmCropAndUpload = async () => {
+    if (!rawLogoDataUrl) return;
+    setIsCroppingAndUploading(true);
+    setCropStatusStep('පින්තූරය කපා සකසමින් (Cropping)...');
 
     try {
-      // 1. Auto-compress to ~100KB with 1200px max dimensions
-      const compResult = await compressImageToTarget(file, 100);
+      const OUTPUT_SIZE = 600; // 600x600 px high-res for ultra sharp display
+      const canvas = document.createElement('canvas');
+      canvas.width = OUTPUT_SIZE;
+      canvas.height = OUTPUT_SIZE;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Canvas initialization failed');
+
+      // Fill white background for transparent images converted to JPEG
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
+
+      // Load original image
+      const img = new window.Image();
+      img.src = rawLogoDataUrl;
+      await new Promise((resolve, reject) => {
+        if (img.complete) resolve(true);
+        img.onload = () => resolve(true);
+        img.onerror = () => reject(new Error('Image failed to load for cropping'));
+      });
+
+      // Calculate transform relative to 300px viewport
+      const CROP_BOX_SIZE = 300;
+      const outputScale = OUTPUT_SIZE / CROP_BOX_SIZE;
+
+      const baseScale = Math.max(CROP_BOX_SIZE / img.naturalWidth, CROP_BOX_SIZE / img.naturalHeight);
+      const currentScale = baseScale * logoZoom;
+      const renderedWidth = img.naturalWidth * currentScale;
+      const renderedHeight = img.naturalHeight * currentScale;
+
+      const imgLeft = (CROP_BOX_SIZE - renderedWidth) / 2 + logoOffset.x;
+      const imgTop = (CROP_BOX_SIZE - renderedHeight) / 2 + logoOffset.y;
+
+      // Draw exact visible cropped portion
+      ctx.drawImage(
+        img,
+        imgLeft * outputScale,
+        imgTop * outputScale,
+        renderedWidth * outputScale,
+        renderedHeight * outputScale
+      );
+
+      setCropStatusStep('Auto-Compress කරමින් (~100KB)...');
+
+      // Export canvas to blob
+      const croppedBlob: Blob = await new Promise((resolve, reject) => {
+        canvas.toBlob(
+          (b) => {
+            if (b) resolve(b);
+            else reject(new Error('Canvas export failed'));
+          },
+          'image/jpeg',
+          0.92
+        );
+      });
+
+      // Auto-compress to ~100KB target
+      const croppedFile = new File([croppedBlob], 'cropped-logo.jpg', { type: 'image/jpeg' });
+      const compResult = await compressImageToTarget(croppedFile, 100);
       setLogoCompressionInfo({
         originalKB: compResult.originalKB,
         compressedKB: compResult.compressedKB,
       });
 
-      // 2. Check ImgBB API key
+      // Check ImgBB API key
       const keyToUse = imgbbApiKey.trim() || DEFAULT_IMGBB_API_KEY;
       if (!keyToUse) {
         throw new Error('ImgBB API Key එකක් ඇතුළත් කර නොමැත. කරුණාකර API Key එක සකසන්න.');
       }
 
-      // 3. Upload to ImgBB
-      setLogoUploadStatus('uploading');
+      setCropStatusStep('ImgBB Cloud වෙත Upload කරමින්...');
+
+      // Upload to ImgBB
       const directUrl = await uploadToImgBB(compResult.blob, keyToUse);
 
-      // 4. Save to Firestore
+      // Save to Firestore
       await updateSettings({ logoUrl: directUrl });
 
       setLogoUploadStatus('success');
-      setLogoSuccessMsg('වෙබ් අඩවියේ Logo එක සාර්ථකව Update විය! මුළු වෙබ් අඩවියේම නව Logo එක දැන් සජීවීව ක්‍රියාත්මකයි.');
+      setLogoSuccessMsg('Logo එක සාර්ථකව Crop කර (~100KB) ImgBB වෙත Upload විය! මුළු වෙබ් අඩවිය පුරාම නව Logo එක දැන් සජීවීව ක්‍රියාත්මකයි.');
+      setShowLogoCropModal(false);
+      setRawLogoDataUrl(null);
     } catch (err: unknown) {
       setLogoUploadStatus('error');
-      setLogoUploadError(err instanceof Error ? err.message : 'Logo එක upload කිරීම අසාර්ථක විය.');
+      setLogoUploadError(err instanceof Error ? err.message : 'Logo එක Crop කර Upload කිරීම අසාර්ථක විය.');
+    } finally {
+      setIsCroppingAndUploading(false);
+      setCropStatusStep('');
     }
+  };
+
+  const handleCloseCropModal = () => {
+    if (isCroppingAndUploading) return;
+    setShowLogoCropModal(false);
+    setRawLogoDataUrl(null);
+    setLogoZoom(1);
+    setLogoOffset({ x: 0, y: 0 });
   };
 
   const handleResetToDefaultLogo = async () => {
@@ -1588,7 +1701,7 @@ export default function AdminDashboardPage() {
                       e.preventDefault();
                       setIsLogoDragging(false);
                       if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                        handleLogoProcessAndUpload(e.dataTransfer.files[0]);
+                        handleSelectLogoFile(e.dataTransfer.files[0]);
                       }
                     }}
                     onClick={() => logoFileInputRef.current?.click()}
@@ -1605,7 +1718,7 @@ export default function AdminDashboardPage() {
                       className="hidden"
                       onChange={(e) => {
                         if (e.target.files && e.target.files[0]) {
-                          handleLogoProcessAndUpload(e.target.files[0]);
+                          handleSelectLogoFile(e.target.files[0]);
                         }
                       }}
                     />
@@ -1636,12 +1749,12 @@ export default function AdminDashboardPage() {
                             නව Logo එකක් තේරීමට මෙතැන Click කරන්න හෝ Drag & Drop කරන්න
                           </p>
                           <p className="text-xs text-gray-500 mt-1">
-                            JPG, PNG, WEBP වර්ගවල ඕනෑම ප්‍රමාණයක පින්තූරයක් තෝරාගත හැක.
+                            පින්තූරය තෝරාගත් පසු ඔබට අවශ්‍ය පරිදි Crop & Zoom කර සකස් කළ හැක.
                           </p>
                         </div>
                         <div className="inline-flex items-center space-x-1.5 px-3 py-1 bg-amber-100/70 border border-amber-300/60 rounded-full text-[11px] text-amber-900 font-medium">
-                          <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                          <span>ස්වයංක්‍රීයව ~100KB වලට Compress වී ImgBB වෙත Upload වේ</span>
+                          <Crop className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Crop & Zoom පහසුකම සහිතයි • Auto-Compress to ~100KB</span>
                         </div>
                       </>
                     )}
@@ -2018,6 +2131,215 @@ export default function AdminDashboardPage() {
                   </button>
                 </div>
               </form>
+
+            </div>
+          </div>
+        )}
+
+        {/* Logo Crop & Zoom Modal */}
+        {showLogoCropModal && rawLogoDataUrl && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-wood-900 border border-amber-500/30 rounded-3xl shadow-2xl max-w-md w-full p-6 space-y-5 my-8 text-amber-50 relative">
+              
+              {/* Modal Header */}
+              <div className="flex items-center justify-between border-b border-wood-800 pb-3">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-400">
+                    <Crop className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base text-amber-300">Logo එක Crop & Zoom කරන්න</h3>
+                    <p className="text-[11px] text-gray-400">වෘත්තාකාර (Circular) රාමුවට ගැලපෙන සේ සකසන්න</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCloseCropModal}
+                  disabled={isCroppingAndUploading}
+                  className="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-wood-800 transition cursor-pointer"
+                  title="වසන්න"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Viewport Instructions */}
+              <div className="bg-wood-950/60 border border-wood-800/80 rounded-xl p-2.5 text-center text-[11px] text-amber-200/80 flex items-center justify-center space-x-1.5">
+                <span>🖱️</span>
+                <span>පින්තූරය <strong>Drag කර</strong> අවශ්‍ය තැනට සකසන්න. පහතින් <strong>Zoom</strong> කරන්න.</span>
+              </div>
+
+              {/* Crop Viewport Box (300px by 300px) */}
+              <div className="flex justify-center">
+                <div
+                  className="relative w-[300px] h-[300px] rounded-2xl overflow-hidden bg-black/90 shadow-2xl border-2 border-amber-500/50 cursor-grab active:cursor-grabbing select-none touch-none"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setIsLogoPanning(true);
+                    setPanStart({ x: e.clientX - logoOffset.x, y: e.clientY - logoOffset.y });
+                  }}
+                  onMouseMove={(e) => {
+                    if (!isLogoPanning) return;
+                    setLogoOffset({
+                      x: e.clientX - panStart.x,
+                      y: e.clientY - panStart.y,
+                    });
+                  }}
+                  onMouseUp={() => setIsLogoPanning(false)}
+                  onMouseLeave={() => setIsLogoPanning(false)}
+                  onTouchStart={(e) => {
+                    if (e.touches.length === 1) {
+                      setIsLogoPanning(true);
+                      setPanStart({ x: e.touches[0].clientX - logoOffset.x, y: e.touches[0].clientY - logoOffset.y });
+                    }
+                  }}
+                  onTouchMove={(e) => {
+                    if (!isLogoPanning || e.touches.length !== 1) return;
+                    setLogoOffset({
+                      x: e.touches[0].clientX - panStart.x,
+                      y: e.touches[0].clientY - panStart.y,
+                    });
+                  }}
+                  onTouchEnd={() => setIsLogoPanning(false)}
+                >
+                  {/* The Scaled and Positioned Image */}
+                  {(() => {
+                    const CROP_BOX = 300;
+                    const baseScale = naturalImgSize.width && naturalImgSize.height
+                      ? Math.max(CROP_BOX / naturalImgSize.width, CROP_BOX / naturalImgSize.height)
+                      : 1;
+                    const currentScale = baseScale * logoZoom;
+                    const renderedW = naturalImgSize.width * currentScale;
+                    const renderedH = naturalImgSize.height * currentScale;
+                    const left = (CROP_BOX - renderedW) / 2 + logoOffset.x;
+                    const top = (CROP_BOX - renderedH) / 2 + logoOffset.y;
+
+                    return (
+                      <img
+                        src={rawLogoDataUrl}
+                        alt="Crop target"
+                        draggable={false}
+                        style={{
+                          position: 'absolute',
+                          left: `${left}px`,
+                          top: `${top}px`,
+                          width: `${renderedW}px`,
+                          height: `${renderedH}px`,
+                          maxWidth: 'none',
+                          maxHeight: 'none',
+                          userSelect: 'none',
+                          pointerEvents: 'none',
+                        }}
+                      />
+                    );
+                  })()}
+
+                  {/* Dark Radial Mask + Amber Circular Guide */}
+                  <div className="absolute inset-0 pointer-events-none">
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        background: 'radial-gradient(circle at 150px 150px, transparent 136px, rgba(10, 10, 15, 0.78) 137px)',
+                      }}
+                    />
+                    {/* Golden Circular Ring with shadow */}
+                    <div className="absolute inset-[14px] rounded-full border-2 border-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.6)]" />
+                    {/* Center Crosshair guides */}
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 opacity-30 pointer-events-none">
+                      <div className="absolute left-1/2 top-0 bottom-0 w-px bg-amber-200 -translate-x-1/2" />
+                      <div className="absolute top-1/2 left-0 right-0 h-px bg-amber-200 -translate-y-1/2" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Zoom Controls */}
+              <div className="space-y-2 bg-wood-950/70 p-3.5 rounded-2xl border border-wood-800">
+                <div className="flex items-center justify-between text-xs text-amber-200/90 font-medium">
+                  <div className="flex items-center space-x-1.5">
+                    <ZoomIn className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Zoom පාලනය (Zoom Control):</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="font-mono text-amber-300 font-bold">{Math.round(logoZoom * 100)}%</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLogoZoom(1);
+                        setLogoOffset({ x: 0, y: 0 });
+                      }}
+                      className="p-1 rounded text-gray-400 hover:text-amber-300 hover:bg-wood-800 transition cursor-pointer"
+                      title="Reset Zoom & Position"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setLogoZoom((z) => Math.max(1, +(z - 0.15).toFixed(2)))}
+                    className="w-8 h-8 rounded-lg bg-wood-800 hover:bg-wood-700 text-amber-200 flex items-center justify-center font-bold text-sm transition cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="range"
+                    min="1"
+                    max="3.5"
+                    step="0.05"
+                    value={logoZoom}
+                    onChange={(e) => setLogoZoom(parseFloat(e.target.value))}
+                    className="w-full h-2 bg-wood-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setLogoZoom((z) => Math.min(3.5, +(z + 0.15).toFixed(2)))}
+                    className="w-8 h-8 rounded-lg bg-wood-800 hover:bg-wood-700 text-amber-200 flex items-center justify-center font-bold text-sm transition cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Upload Progress Status if in progress */}
+              {isCroppingAndUploading && (
+                <div className="bg-amber-950/60 border border-amber-800/80 p-3 rounded-xl text-amber-200 text-xs flex items-center space-x-2.5 animate-pulse">
+                  <Loader2 className="w-4 h-4 animate-spin text-amber-400 flex-shrink-0" />
+                  <span>{cropStatusStep || 'සකසමින් පවතී...'}</span>
+                </div>
+              )}
+
+              {/* Modal Action Buttons */}
+              <div className="flex items-center space-x-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={handleCloseCropModal}
+                  disabled={isCroppingAndUploading}
+                  className="w-1/3 py-2.5 rounded-xl border border-wood-700 text-xs font-semibold text-gray-300 hover:text-white hover:bg-wood-800 transition cursor-pointer disabled:opacity-50"
+                >
+                  අවලංගු කරන්න
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmCropAndUpload}
+                  disabled={isCroppingAndUploading}
+                  className="w-2/3 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white text-xs sm:text-sm font-bold shadow-lg shadow-amber-950/50 flex items-center justify-center space-x-2 transition cursor-pointer disabled:opacity-50"
+                >
+                  {isCroppingAndUploading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>{cropStatusStep || 'සුරකිමින්...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Crop කර Upload කරන්න</span>
+                    </>
+                  )}
+                </button>
+              </div>
 
             </div>
           </div>
