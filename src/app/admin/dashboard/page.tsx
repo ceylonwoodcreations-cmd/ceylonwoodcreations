@@ -349,7 +349,10 @@ export default function AdminDashboardPage() {
     setCropStatusStep('පින්තූරය කපා සකසමින් (Cropping)...');
 
     try {
-      const OUTPUT_SIZE = 600; // 600x600 px high-res for ultra sharp display
+      const CROP_SIZE = 280;
+      const OUTPUT_SIZE = 560; // 560x560 px high-res for ultra sharp display with zero gap
+      const outputScale = OUTPUT_SIZE / CROP_SIZE;
+
       const canvas = document.createElement('canvas');
       canvas.width = OUTPUT_SIZE;
       canvas.height = OUTPUT_SIZE;
@@ -369,19 +372,15 @@ export default function AdminDashboardPage() {
         img.onerror = () => reject(new Error('Image failed to load for cropping'));
       });
 
-      // Calculate transform relative to 300px viewport
-      const CROP_BOX_SIZE = 300;
-      const outputScale = OUTPUT_SIZE / CROP_BOX_SIZE;
-
-      const baseScale = Math.max(CROP_BOX_SIZE / img.naturalWidth, CROP_BOX_SIZE / img.naturalHeight);
+      const baseScale = Math.max(CROP_SIZE / img.naturalWidth, CROP_SIZE / img.naturalHeight);
       const currentScale = baseScale * logoZoom;
       const renderedWidth = img.naturalWidth * currentScale;
       const renderedHeight = img.naturalHeight * currentScale;
 
-      const imgLeft = (CROP_BOX_SIZE - renderedWidth) / 2 + logoOffset.x;
-      const imgTop = (CROP_BOX_SIZE - renderedHeight) / 2 + logoOffset.y;
+      const imgLeft = (CROP_SIZE - renderedWidth) / 2 + logoOffset.x;
+      const imgTop = (CROP_SIZE - renderedHeight) / 2 + logoOffset.y;
 
-      // Draw exact visible cropped portion
+      // Draw exact visible cropped portion (zero gap)
       ctx.drawImage(
         img,
         imgLeft * outputScale,
@@ -2163,16 +2162,21 @@ export default function AdminDashboardPage() {
                 </button>
               </div>
 
-              {/* Viewport Instructions */}
-              <div className="bg-wood-950/60 border border-wood-800/80 rounded-xl p-2.5 text-center text-[11px] text-amber-200/80 flex items-center justify-center space-x-1.5">
-                <span>🖱️</span>
-                <span>පින්තූරය <strong>Drag කර</strong> අවශ්‍ය තැනට සකසන්න. පහතින් <strong>Zoom</strong> කරන්න.</span>
+              {/* Guidance Alert Banner */}
+              <div className="bg-amber-950/60 border border-amber-800/80 rounded-xl p-3 text-[11px] text-amber-200/90 space-y-1">
+                <div className="flex items-center space-x-1.5 font-bold text-amber-300">
+                  <span>💡</span>
+                  <span>වටේ සුදු හිඩැස් නැති කිරීමට (Zero-Gap / Edge-to-Edge):</span>
+                </div>
+                <p className="pl-5 leading-relaxed text-gray-300">
+                  Logo එක <strong>Drag කර</strong> මැදට ගෙන, පහත <strong>145%</strong> බොත්තමෙන් හෝ <strong>Zoom Slider</strong> එකෙන් Logo එක රන්වන් රවුමේ දාරය (Golden Border) දක්වාම විශාල කරන්න.
+                </p>
               </div>
 
-              {/* Crop Viewport Box (300px by 300px) */}
-              <div className="flex justify-center">
+              {/* Exact Circular Viewport (280px by 280px) */}
+              <div className="flex justify-center py-1">
                 <div
-                  className="relative w-[300px] h-[300px] rounded-2xl overflow-hidden bg-black/90 shadow-2xl border-2 border-amber-500/50 cursor-grab active:cursor-grabbing select-none touch-none"
+                  className="relative w-[280px] h-[280px] rounded-full overflow-hidden bg-black shadow-2xl border-4 border-amber-400 ring-4 ring-amber-500/30 cursor-grab active:cursor-grabbing select-none touch-none mx-auto"
                   onMouseDown={(e) => {
                     e.preventDefault();
                     setIsLogoPanning(true);
@@ -2204,7 +2208,7 @@ export default function AdminDashboardPage() {
                 >
                   {/* The Scaled and Positioned Image */}
                   {(() => {
-                    const CROP_BOX = 300;
+                    const CROP_BOX = 280;
                     const baseScale = naturalImgSize.width && naturalImgSize.height
                       ? Math.max(CROP_BOX / naturalImgSize.width, CROP_BOX / naturalImgSize.height)
                       : 1;
@@ -2234,31 +2238,68 @@ export default function AdminDashboardPage() {
                     );
                   })()}
 
-                  {/* Dark Radial Mask + Amber Circular Guide */}
-                  <div className="absolute inset-0 pointer-events-none">
-                    <div
-                      className="absolute inset-0"
-                      style={{
-                        background: 'radial-gradient(circle at 150px 150px, transparent 136px, rgba(10, 10, 15, 0.78) 137px)',
-                      }}
-                    />
-                    {/* Golden Circular Ring with shadow */}
-                    <div className="absolute inset-[14px] rounded-full border-2 border-amber-400 shadow-[0_0_20px_rgba(251,191,36,0.6)]" />
-                    {/* Center Crosshair guides */}
-                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 opacity-30 pointer-events-none">
-                      <div className="absolute left-1/2 top-0 bottom-0 w-px bg-amber-200 -translate-x-1/2" />
-                      <div className="absolute top-1/2 left-0 right-0 h-px bg-amber-200 -translate-y-1/2" />
-                    </div>
+                  {/* Subtle Center Crosshair */}
+                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 opacity-30 pointer-events-none">
+                    <div className="absolute left-1/2 top-0 bottom-0 w-px bg-amber-400 -translate-x-1/2" />
+                    <div className="absolute top-1/2 left-0 right-0 h-px bg-amber-400 -translate-y-1/2" />
                   </div>
                 </div>
               </div>
 
-              {/* Zoom Controls */}
-              <div className="space-y-2 bg-wood-950/70 p-3.5 rounded-2xl border border-wood-800">
+              {/* Live Mini Preview Bar */}
+              <div className="bg-wood-950/90 p-3 rounded-2xl border border-wood-800 flex items-center justify-between shadow-inner">
+                <div className="flex items-center space-x-3">
+                  <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-amber-400 shadow-md bg-wood-950 flex-shrink-0 relative ring-1 ring-amber-500/30">
+                    {(() => {
+                      const CROP_BOX = 280;
+                      const baseScale = naturalImgSize.width && naturalImgSize.height
+                        ? Math.max(CROP_BOX / naturalImgSize.width, CROP_BOX / naturalImgSize.height)
+                        : 1;
+                      const currentScale = baseScale * logoZoom;
+                      const renderedW = naturalImgSize.width * currentScale;
+                      const renderedH = naturalImgSize.height * currentScale;
+                      const left = (CROP_BOX - renderedW) / 2 + logoOffset.x;
+                      const top = (CROP_BOX - renderedH) / 2 + logoOffset.y;
+                      const ratio = 56 / 280;
+
+                      return (
+                        <img
+                          src={rawLogoDataUrl}
+                          alt="Live Preview"
+                          draggable={false}
+                          style={{
+                            position: 'absolute',
+                            left: `${left * ratio}px`,
+                            top: `${top * ratio}px`,
+                            width: `${renderedW * ratio}px`,
+                            height: `${renderedH * ratio}px`,
+                            maxWidth: 'none',
+                            maxHeight: 'none',
+                            userSelect: 'none',
+                            pointerEvents: 'none',
+                          }}
+                        />
+                      );
+                    })()}
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-amber-300 block">සජීවී ආදර්ශකය (Live Website Preview)</span>
+                    <span className="text-[10px] text-gray-400 block">Navbar සහ Footer හි දිස්වන සැබෑ ප්‍රමාණය</span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="inline-block text-[10px] font-semibold text-emerald-400 bg-emerald-950/80 border border-emerald-800/80 px-2 py-0.5 rounded-full">
+                    Zero-Gap View
+                  </span>
+                </div>
+              </div>
+
+              {/* Zoom Controls & Presets */}
+              <div className="space-y-2.5 bg-wood-950/70 p-3.5 rounded-2xl border border-wood-800">
                 <div className="flex items-center justify-between text-xs text-amber-200/90 font-medium">
                   <div className="flex items-center space-x-1.5">
                     <ZoomIn className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Zoom පාලනය (Zoom Control):</span>
+                    <span>Zoom පාලනය (Zoom Slider):</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className="font-mono text-amber-300 font-bold">{Math.round(logoZoom * 100)}%</span>
@@ -2279,15 +2320,15 @@ export default function AdminDashboardPage() {
                 <div className="flex items-center space-x-3">
                   <button
                     type="button"
-                    onClick={() => setLogoZoom((z) => Math.max(1, +(z - 0.15).toFixed(2)))}
+                    onClick={() => setLogoZoom((z) => Math.max(0.8, +(z - 0.15).toFixed(2)))}
                     className="w-8 h-8 rounded-lg bg-wood-800 hover:bg-wood-700 text-amber-200 flex items-center justify-center font-bold text-sm transition cursor-pointer"
                   >
                     -
                   </button>
                   <input
                     type="range"
-                    min="1"
-                    max="3.5"
+                    min="0.8"
+                    max="4.0"
                     step="0.05"
                     value={logoZoom}
                     onChange={(e) => setLogoZoom(parseFloat(e.target.value))}
@@ -2295,11 +2336,38 @@ export default function AdminDashboardPage() {
                   />
                   <button
                     type="button"
-                    onClick={() => setLogoZoom((z) => Math.min(3.5, +(z + 0.15).toFixed(2)))}
+                    onClick={() => setLogoZoom((z) => Math.min(4.0, +(z + 0.15).toFixed(2)))}
                     className="w-8 h-8 rounded-lg bg-wood-800 hover:bg-wood-700 text-amber-200 flex items-center justify-center font-bold text-sm transition cursor-pointer"
                   >
                     +
                   </button>
+                </div>
+
+                {/* Quick Presets for Edge-to-Edge Fill */}
+                <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1 border-t border-wood-800/80">
+                  <span className="text-[10px] text-gray-400">ක්ෂණික Zoom:</span>
+                  <div className="flex flex-wrap gap-1">
+                    {[
+                      { label: '100%', zoom: 1.0 },
+                      { label: '125%', zoom: 1.25 },
+                      { label: '145% (Fill)', zoom: 1.45 },
+                      { label: '175%', zoom: 1.75 },
+                      { label: '200%', zoom: 2.0 },
+                    ].map((preset) => (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => setLogoZoom(preset.zoom)}
+                        className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition cursor-pointer ${
+                          Math.abs(logoZoom - preset.zoom) < 0.04
+                            ? 'bg-amber-500 text-wood-950 font-bold'
+                            : 'bg-wood-800 text-amber-200/80 hover:bg-wood-700'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
