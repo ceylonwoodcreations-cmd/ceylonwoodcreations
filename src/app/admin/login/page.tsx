@@ -49,6 +49,7 @@ export default function AdminLoginPage() {
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
   const [resetFeedback, setResetFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isResetting, setIsResetting] = useState(false);
+  const [logoUrl, setLogoUrl] = useState<string>('');
 
   // Anti-Spam Cooldown & Request Limit States
   const [pinCooldownRemaining, setPinCooldownRemaining] = useState(0);
@@ -58,6 +59,21 @@ export default function AdminLoginPage() {
   useEffect(() => {
     checkTimers();
     const interval = setInterval(checkTimers, 1000);
+
+    // Load active logo from local settings or Firestore
+    try {
+      const saved = localStorage.getItem('ceylon_settings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.logoUrl) setLogoUrl(parsed.logoUrl);
+      }
+      getDoc(doc(db, 'settings', 'general')).then((snap) => {
+        if (snap.exists() && snap.data()?.logoUrl) {
+          setLogoUrl(snap.data().logoUrl);
+        }
+      }).catch(() => {});
+    } catch (_) {}
+
     return () => clearInterval(interval);
   }, []);
 
@@ -337,7 +353,7 @@ export default function AdminLoginPage() {
         <div className="text-center space-y-3">
           <div className="w-24 h-24 mx-auto rounded-full overflow-hidden border-2 border-amber-400/80 shadow-2xl shadow-amber-950/80 bg-wood-950 ring-2 ring-amber-500/30">
             <Image
-              src={logoImg}
+              src={logoUrl || logoImg}
               alt="Ceylon Wood Creations"
               width={96}
               height={96}

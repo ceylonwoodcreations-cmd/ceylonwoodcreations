@@ -18,6 +18,7 @@ export default function Footer() {
 
   const currentPhone = settings.displayPhone || '+94 70 000 0000 (WhatsApp / Voice)';
   const cleanWhatsApp = settings.whatsappNumber || '94700000000';
+  const activeLogoSrc = settings?.logoUrl?.trim() ? settings.logoUrl : logoImg;
 
   return (
     <footer className="bg-wood-950 text-amber-100 py-14 border-t-2 border-wood-800 shadow-2xl">
@@ -28,7 +29,7 @@ export default function Footer() {
           <div className="flex items-center space-x-3.5">
             <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-amber-400/60 shadow-lg flex-shrink-0 bg-wood-900 ring-1 ring-amber-500/30">
               <Image
-                src={logoImg}
+                src={activeLogoSrc}
                 alt="Ceylon Wood Creations"
                 width={56}
                 height={56}

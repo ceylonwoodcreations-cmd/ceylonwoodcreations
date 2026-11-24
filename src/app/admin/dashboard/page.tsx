@@ -112,6 +112,15 @@ export default function AdminDashboardPage() {
   const [previewDataUrl, setPreviewDataUrl] = useState<string>('');
   const [isDragging, setIsDragging] = useState(false);
 
+  // Logo Upload States
+  const [logoUploadStatus, setLogoUploadStatus] = useState<'idle' | 'compressing' | 'uploading' | 'success' | 'error'>('idle');
+  const [logoCompressionInfo, setLogoCompressionInfo] = useState<{ originalKB: number; compressedKB: number } | null>(null);
+  const [logoUploadError, setLogoUploadError] = useState<string | null>(null);
+  const [logoSuccessMsg, setLogoSuccessMsg] = useState<string | null>(null);
+  const [isResettingLogo, setIsResettingLogo] = useState(false);
+  const [isLogoDragging, setIsLogoDragging] = useState(false);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
+
   // Edit Modal States
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editTitle, setEditTitle] = useState('');
@@ -286,6 +295,59 @@ export default function AdminDashboardPage() {
       setFormAddressEn(defaultSettings.addressEn);
       setSettingsSaveSuccess(true);
       setTimeout(() => setSettingsSaveSuccess(false), 3000);
+    }
+  };
+
+  // Process, auto-compress, and upload Logo
+  const handleLogoProcessAndUpload = async (file: File) => {
+    if (!file) return;
+    setLogoUploadError(null);
+    setLogoSuccessMsg(null);
+    setLogoUploadStatus('compressing');
+
+    try {
+      // 1. Auto-compress to ~100KB with 1200px max dimensions
+      const compResult = await compressImageToTarget(file, 100);
+      setLogoCompressionInfo({
+        originalKB: compResult.originalKB,
+        compressedKB: compResult.compressedKB,
+      });
+
+      // 2. Check ImgBB API key
+      const keyToUse = imgbbApiKey.trim() || DEFAULT_IMGBB_API_KEY;
+      if (!keyToUse) {
+        throw new Error('ImgBB API Key එකක් ඇතුළත් කර නොමැත. කරුණාකර API Key එක සකසන්න.');
+      }
+
+      // 3. Upload to ImgBB
+      setLogoUploadStatus('uploading');
+      const directUrl = await uploadToImgBB(compResult.blob, keyToUse);
+
+      // 4. Save to Firestore
+      await updateSettings({ logoUrl: directUrl });
+
+      setLogoUploadStatus('success');
+      setLogoSuccessMsg('වෙබ් අඩවියේ Logo එක සාර්ථකව Update විය! මුළු වෙබ් අඩවියේම නව Logo එක දැන් සජීවීව ක්‍රියාත්මකයි.');
+    } catch (err: unknown) {
+      setLogoUploadStatus('error');
+      setLogoUploadError(err instanceof Error ? err.message : 'Logo එක upload කිරීම අසාර්ථක විය.');
+    }
+  };
+
+  const handleResetToDefaultLogo = async () => {
+    if (!confirm('ඔබට නැවත පෙරනිමි (Default) Logo එක භාවිතා කිරීමට අවශ්‍යද?')) return;
+    setIsResettingLogo(true);
+    setLogoUploadError(null);
+    setLogoSuccessMsg(null);
+    try {
+      await updateSettings({ logoUrl: '' });
+      setLogoSuccessMsg('පෙරනිමි Logo එක සාර්ථකව ප්‍රතිස්ථාපනය විය!');
+      setLogoCompressionInfo(null);
+      setLogoUploadStatus('idle');
+    } catch (err: unknown) {
+      setLogoUploadError('Logo එක reset කිරීම අසාර්ථක විය.');
+    } finally {
+      setIsResettingLogo(false);
     }
   };
 
@@ -582,7 +644,7 @@ export default function AdminDashboardPage() {
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-amber-400/60 shadow-sm flex-shrink-0 bg-wood-950 ring-1 ring-amber-500/30">
               <Image
-                src={logoImg}
+                src={settings.logoUrl || logoImg}
                 alt="Ceylon Wood Creations"
                 width={40}
                 height={40}
@@ -1441,6 +1503,161 @@ export default function AdminDashboardPage() {
 
               </div>
 
+            </div>
+
+            {/* Website Logo Management Card */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-amber-100 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-amber-100 pb-5">
+                <div>
+                  <div className="flex items-center space-x-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700">
+                      <ImageIcon className="w-5 h-5" />
+                    </div>
+                    <h2 className="text-xl sm:text-2xl font-bold text-wood-900 brand-font">
+                      වෙබ් අඩවියේ Logo එක (Website Logo Management)
+                    </h2>
+                  </div>
+                  <p className="text-xs sm:text-sm text-gray-500 mt-1.5 leading-relaxed">
+                    වෙබ් අඩවියේ Navbar, Footer සහ Admin Portal හි දිස්වන නිල Logo එක මෙතැනින් පහසුවෙන්ම වෙනස් කළ හැක.
+                  </p>
+                </div>
+                {settings.logoUrl && (
+                  <button
+                    type="button"
+                    onClick={handleResetToDefaultLogo}
+                    disabled={isResettingLogo || logoUploadStatus === 'uploading' || logoUploadStatus === 'compressing'}
+                    className="self-start sm:self-auto text-xs font-semibold text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-3.5 py-2 rounded-xl transition flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer"
+                  >
+                    {isResettingLogo ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    )}
+                    <span>පෙරනිමි (Default) Logo එකට මාරු වන්න</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Feedback Alert Messages */}
+              {logoSuccessMsg && (
+                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs sm:text-sm flex items-center space-x-2.5 shadow-sm">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                  <span>{logoSuccessMsg}</span>
+                </div>
+              )}
+              {logoUploadError && (
+                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs sm:text-sm flex items-center space-x-2.5 shadow-sm">
+                  <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0" />
+                  <span>{logoUploadError}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+                {/* Current Active Logo Preview */}
+                <div className="lg:col-span-4 flex flex-col items-center justify-center p-6 bg-wood-50/50 rounded-2xl border border-amber-200/80 text-center space-y-3">
+                  <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">
+                    දැනට සක්‍රිය Logo එක (Active Logo)
+                  </span>
+                  <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-amber-400 shadow-xl bg-wood-950 ring-2 ring-amber-500/40 relative">
+                    <Image
+                      src={settings.logoUrl || logoImg}
+                      alt="Ceylon Wood Creations Logo"
+                      width={112}
+                      height={112}
+                      className="w-full h-full object-cover rounded-full"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                      settings.logoUrl ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                    }`}>
+                      {settings.logoUrl ? 'Custom ImgBB Logo' : 'Default Bundled Logo'}
+                    </span>
+                    <p className="text-[10px] text-gray-400">
+                      Navbar, Footer, සහ Admin පිටුවල ප්‍රදර්ශනය වේ.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Upload & Auto-Compress Area */}
+                <div className="lg:col-span-8 space-y-4">
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); setIsLogoDragging(true); }}
+                    onDragLeave={(e) => { e.preventDefault(); setIsLogoDragging(false); }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsLogoDragging(false);
+                      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                        handleLogoProcessAndUpload(e.dataTransfer.files[0]);
+                      }
+                    }}
+                    onClick={() => logoFileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-2xl p-6 sm:p-8 text-center cursor-pointer transition flex flex-col items-center justify-center space-y-3 ${
+                      isLogoDragging
+                        ? 'border-amber-600 bg-amber-50/70 scale-[1.01]'
+                        : 'border-amber-300 hover:border-amber-500 bg-amber-50/20 hover:bg-amber-50/40'
+                    }`}
+                  >
+                    <input
+                      ref={logoFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          handleLogoProcessAndUpload(e.target.files[0]);
+                        }
+                      }}
+                    />
+
+                    {logoUploadStatus === 'compressing' ? (
+                      <div className="space-y-2 py-4">
+                        <Loader2 className="w-8 h-8 text-amber-600 animate-spin mx-auto" />
+                        <p className="text-xs font-bold text-wood-900">පින්තූරය Auto-Compress වෙමින් පවතී (~100KB)...</p>
+                        <p className="text-[11px] text-gray-500">පැහැදිලි බව රැකගෙන ප්‍රමාණය අඩු කෙරේ.</p>
+                      </div>
+                    ) : logoUploadStatus === 'uploading' ? (
+                      <div className="space-y-2 py-4">
+                        <Loader2 className="w-8 h-8 text-emerald-600 animate-spin mx-auto" />
+                        <p className="text-xs font-bold text-emerald-900">ImgBB Cloud වෙත Upload වෙමින් පවතී...</p>
+                        {logoCompressionInfo && (
+                          <p className="text-[11px] text-gray-500">
+                            {logoCompressionInfo.originalKB} KB ➔ {logoCompressionInfo.compressedKB} KB දක්වා Compress විය.
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center text-amber-700 shadow-sm">
+                          <UploadCloud className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-wood-900">
+                            නව Logo එකක් තේරීමට මෙතැන Click කරන්න හෝ Drag & Drop කරන්න
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            JPG, PNG, WEBP වර්ගවල ඕනෑම ප්‍රමාණයක පින්තූරයක් තෝරාගත හැක.
+                          </p>
+                        </div>
+                        <div className="inline-flex items-center space-x-1.5 px-3 py-1 bg-amber-100/70 border border-amber-300/60 rounded-full text-[11px] text-amber-900 font-medium">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                          <span>ස්වයංක්‍රීයව ~100KB වලට Compress වී ImgBB වෙත Upload වේ</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {logoCompressionInfo && logoUploadStatus === 'success' && (
+                    <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl text-emerald-800 text-xs flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                        <span>ප්‍රමාණය සාර්ථකව Compress විය: <strong>{logoCompressionInfo.originalKB} KB ➔ {logoCompressionInfo.compressedKB} KB</strong></span>
+                      </div>
+                      <span className="font-semibold text-emerald-700 text-[11px]">Auto-Optimized ✓</span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Password & Security Card */}

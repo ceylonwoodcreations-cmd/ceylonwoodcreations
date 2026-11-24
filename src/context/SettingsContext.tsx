@@ -8,6 +8,7 @@ export interface BusinessSettings {
   displayPhone: string;   // Display text, e.g. "+94 70 000 0000 (WhatsApp / Voice)"
   addressSi: string;      // Address in Sinhala
   addressEn: string;      // Address in English
+  logoUrl?: string;       // Custom uploaded Logo URL (ImgBB)
 }
 
 export function formatWhatsAppNumber(raw: string): string {
@@ -24,6 +25,7 @@ export const defaultSettings: BusinessSettings = {
   displayPhone: '+94 70 000 0000 (WhatsApp / Voice)',
   addressSi: 'නුවර පාර, මොරටුව / ගාල්ල, ශ්‍රී ලංකාව',
   addressEn: 'Kandy Road, Moratuwa / Galle, Sri Lanka',
+  logoUrl: '',
 };
 
 interface SettingsContextType {
@@ -67,6 +69,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
               displayPhone: data.displayPhone || defaultSettings.displayPhone,
               addressSi: data.addressSi || defaultSettings.addressSi,
               addressEn: data.addressEn || defaultSettings.addressEn,
+              logoUrl: data.logoUrl || '',
             };
             setSettings(merged);
             try {
