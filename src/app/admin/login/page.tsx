@@ -351,7 +351,7 @@ export default function AdminLoginPage() {
         
         {/* Header */}
         <div className="text-center space-y-3">
-          <div className="w-24 h-24 mx-auto rounded-full overflow-hidden border-2 border-amber-400/80 shadow-2xl shadow-amber-950/80 bg-wood-950 ring-2 ring-amber-500/30">
+          <div className="w-24 h-24 mx-auto rounded-full overflow-hidden shadow-2xl drop-shadow-xl">
             <Image
               src={logoUrl || logoImg}
               alt="Ceylon Wood Creations"

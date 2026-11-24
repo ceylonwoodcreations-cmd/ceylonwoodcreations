@@ -754,7 +754,7 @@ export default function AdminDashboardPage() {
       <header className="bg-wood-900 text-white border-b border-wood-800 sticky top-0 z-30 shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-amber-400/60 shadow-sm flex-shrink-0 bg-wood-950 ring-1 ring-amber-500/30">
+            <div className="w-10 h-10 rounded-full overflow-hidden shadow-sm flex-shrink-0">
               <Image
                 src={settings.logoUrl || logoImg}
                 alt="Ceylon Wood Creations"
@@ -1670,7 +1670,7 @@ export default function AdminDashboardPage() {
                   <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">
                     දැනට සක්‍රිය Logo එක (Active Logo)
                   </span>
-                  <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-amber-400 shadow-xl bg-wood-950 ring-2 ring-amber-500/40 relative">
+                  <div className="w-28 h-28 rounded-full overflow-hidden shadow-xl drop-shadow-md relative bg-transparent transition-transform hover:scale-105">
                     <Image
                       src={settings.logoUrl || logoImg}
                       alt="Ceylon Wood Creations Logo"
@@ -2169,14 +2169,14 @@ export default function AdminDashboardPage() {
                   <span>වටේ සුදු හිඩැස් නැති කිරීමට (Zero-Gap / Edge-to-Edge):</span>
                 </div>
                 <p className="pl-5 leading-relaxed text-gray-300">
-                  Logo එක <strong>Drag කර</strong> මැදට ගෙන, පහත <strong>145%</strong> බොත්තමෙන් හෝ <strong>Zoom Slider</strong> එකෙන් Logo එක රන්වන් රවුමේ දාරය (Golden Border) දක්වාම විශාල කරන්න.
+                  Logo එක <strong>Drag කර</strong> මැදට ගෙන, පහත <strong>145%</strong> බොත්තමෙන් හෝ <strong>Zoom Slider</strong> එකෙන් Logo එක කැපුම් රවුමේ දාරය දක්වාම (Zero Gap) විශාල කරන්න.
                 </p>
               </div>
 
               {/* Exact Circular Viewport (280px by 280px) */}
               <div className="flex justify-center py-1">
                 <div
-                  className="relative w-[280px] h-[280px] rounded-full overflow-hidden bg-black shadow-2xl border-4 border-amber-400 ring-4 ring-amber-500/30 cursor-grab active:cursor-grabbing select-none touch-none mx-auto"
+                  className="relative w-[280px] h-[280px] rounded-full overflow-hidden bg-wood-950 shadow-2xl border-2 border-white/50 cursor-grab active:cursor-grabbing select-none touch-none mx-auto"
                   onMouseDown={(e) => {
                     e.preventDefault();
                     setIsLogoPanning(true);
@@ -2316,7 +2316,7 @@ export default function AdminDashboardPage() {
               {/* Live Mini Preview Bar */}
               <div className="bg-wood-950/90 p-3 rounded-2xl border border-wood-800 flex items-center justify-between shadow-inner">
                 <div className="flex items-center space-x-3">
-                  <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-amber-400 shadow-md bg-wood-950 flex-shrink-0 relative ring-1 ring-amber-500/30">
+                  <div className="w-14 h-14 rounded-full overflow-hidden shadow-md bg-wood-950 flex-shrink-0 relative">
                     {(() => {
                       const CROP_BOX = 280;
                       const baseScale = naturalImgSize.width && naturalImgSize.height

@@ -20,7 +20,7 @@ export default function Navbar() {
         
         {/* Brand Logo & Name */}
         <Link href="/" className="flex items-center space-x-3.5 group">
-          <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-amber-400/70 shadow-lg shadow-amber-950/50 group-hover:border-amber-300 group-hover:scale-105 transition-all duration-300 flex-shrink-0 bg-wood-950 ring-1 ring-amber-500/30">
+          <div className="w-14 h-14 rounded-full overflow-hidden shadow-lg group-hover:scale-105 transition-all duration-300 flex-shrink-0 drop-shadow-md">
             <Image
               src={activeLogoSrc}
               alt="Ceylon Wood Creations"

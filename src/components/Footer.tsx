@@ -27,7 +27,7 @@ export default function Footer() {
         {/* Brand */}
         <div className="space-y-3">
           <div className="flex items-center space-x-3.5">
-            <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-amber-400/60 shadow-lg flex-shrink-0 bg-wood-900 ring-1 ring-amber-500/30">
+            <div className="w-14 h-14 rounded-full overflow-hidden shadow-lg flex-shrink-0 drop-shadow-md">
               <Image
                 src={activeLogoSrc}
                 alt="Ceylon Wood Creations"
