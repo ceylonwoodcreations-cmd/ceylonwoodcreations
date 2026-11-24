@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import logoImg from '../../public/logo.jpg';
+import logoImg from '../../public/logo.png';
 import { Globe, Shield, Menu, X } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useSettings } from '@/context/SettingsContext';

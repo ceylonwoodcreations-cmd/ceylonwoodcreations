@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import logoImg from '../../../../public/logo.jpg';
+import logoImg from '../../../../public/logo.png';
 import { 
   Package, 
   MessageSquare, 
@@ -359,9 +359,8 @@ export default function AdminDashboardPage() {
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('Canvas initialization failed');
 
-      // Fill white background for transparent images converted to JPEG
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
+      // Clear with transparent background (zero white fill)
+      ctx.clearRect(0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
 
       // Load original image
       const img = new window.Image();
@@ -380,7 +379,7 @@ export default function AdminDashboardPage() {
       const imgLeft = (CROP_SIZE - renderedWidth) / 2 + logoOffset.x;
       const imgTop = (CROP_SIZE - renderedHeight) / 2 + logoOffset.y;
 
-      // Draw exact visible cropped portion (zero gap)
+      // Draw exact visible cropped portion
       ctx.drawImage(
         img,
         imgLeft * outputScale,
@@ -389,26 +388,100 @@ export default function AdminDashboardPage() {
         renderedHeight * outputScale
       );
 
-      setCropStatusStep('Auto-Compress කරමින් (~100KB)...');
+      // Cleanly remove any outer white background around the logo emblem
+      try {
+        const imgData = ctx.getImageData(0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
+        const data = imgData.data;
+        const w = OUTPUT_SIZE;
+        const h = OUTPUT_SIZE;
+        const visited = new Uint8Array(w * h);
+        const queue: number[] = [];
 
-      // Export canvas to blob
+        const isOuterLight = (x: number, y: number) => {
+          const idx = (y * w + x) * 4;
+          const a = data[idx + 3];
+          if (a < 25) return true;
+          const r = data[idx];
+          const g = data[idx + 1];
+          const b = data[idx + 2];
+          return r > 215 && g > 215 && b > 215;
+        };
+
+        for (let x = 0; x < w; x++) {
+          if (isOuterLight(x, 0)) { queue.push(x, 0); visited[0 * w + x] = 1; }
+          if (isOuterLight(x, h - 1)) { queue.push(x, h - 1); visited[(h - 1) * w + x] = 1; }
+        }
+        for (let y = 0; y < h; y++) {
+          if (!visited[y * w + 0] && isOuterLight(0, y)) { queue.push(0, y); visited[y * w + 0] = 1; }
+          if (!visited[y * w + w - 1] && isOuterLight(w - 1, y)) { queue.push(w - 1, y); visited[y * w + w - 1] = 1; }
+        }
+
+        let qHead = 0;
+        while (qHead < queue.length) {
+          const cx = queue[qHead++];
+          const cy = queue[qHead++];
+          const neighbors = [
+            [cx + 1, cy],
+            [cx - 1, cy],
+            [cx, cy + 1],
+            [cx, cy - 1],
+          ];
+          for (const [nx, ny] of neighbors) {
+            if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+              const nPos = ny * w + nx;
+              if (!visited[nPos] && isOuterLight(nx, ny)) {
+                visited[nPos] = 1;
+                queue.push(nx, ny);
+              }
+            }
+          }
+        }
+
+        // Set flooded outer white pixels to transparent with feathered edge
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const pos = y * w + x;
+            const idx = pos * 4;
+            if (visited[pos]) {
+              data[idx + 3] = 0;
+            } else {
+              // Edge smoothing
+              let isEdge = false;
+              if (x > 0 && visited[pos - 1]) isEdge = true;
+              if (x < w - 1 && visited[pos + 1]) isEdge = true;
+              if (y > 0 && visited[pos - w]) isEdge = true;
+              if (y < h - 1 && visited[pos + w]) isEdge = true;
+
+              const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+              if (isEdge && r > 195 && g > 195 && b > 195) {
+                const brightness = (r + g + b) / 3;
+                data[idx + 3] = Math.max(0, Math.min(255, Math.round((255 - brightness) / 60 * 255)));
+              }
+            }
+          }
+        }
+        ctx.putImageData(imgData, 0, 0);
+      } catch (_) {
+        // Fallback: Proceed with canvas if pixel reading is restricted
+      }
+
+      setCropStatusStep('Transparent PNG සකසමින්...');
+
+      // Export canvas to transparent PNG blob
       const croppedBlob: Blob = await new Promise((resolve, reject) => {
         canvas.toBlob(
           (b) => {
             if (b) resolve(b);
             else reject(new Error('Canvas export failed'));
           },
-          'image/jpeg',
-          0.92
+          'image/png'
         );
       });
 
-      // Auto-compress to ~100KB target
-      const croppedFile = new File([croppedBlob], 'cropped-logo.jpg', { type: 'image/jpeg' });
-      const compResult = await compressImageToTarget(croppedFile, 100);
+      const croppedSizeKB = Math.round(croppedBlob.size / 1024);
       setLogoCompressionInfo({
-        originalKB: compResult.originalKB,
-        compressedKB: compResult.compressedKB,
+        originalKB: croppedSizeKB,
+        compressedKB: croppedSizeKB,
       });
 
       // Check ImgBB API key
@@ -420,7 +493,7 @@ export default function AdminDashboardPage() {
       setCropStatusStep('ImgBB Cloud වෙත Upload කරමින්...');
 
       // Upload to ImgBB
-      const directUrl = await uploadToImgBB(compResult.blob, keyToUse);
+      const directUrl = await uploadToImgBB(croppedBlob, keyToUse);
 
       // Save to Firestore
       await updateSettings({ logoUrl: directUrl });

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import logoImg from '../../../../public/logo.jpg';
+import logoImg from '../../../../public/logo.png';
 import { 
   Lock, 
   User, 
